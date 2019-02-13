@@ -1,5 +1,27 @@
 
+/*
+   Creates randomize sets of a chemical reaction. All reactions are written in a file in the following format:
+   reactant1.reactant2.reactant3>>product 
 
+   For example, for etherification reaction the line can be:
+   c1ccccc1CO.CO>>c1ccccc1COC
+   
+   And the output 
+
+   CO.c1(CO)ccccc1>>COCc1ccccc1
+   CO.c1c(CO)cccc1>>COCc1ccccc1
+   CO.c1cc(ccc1)CO>>COCc1ccccc1
+   OC.OCc1ccccc1>>COCc1ccccc1
+   OCc1ccccc1.CO>>COCc1ccccc1
+   OCc1ccccc1.OC>>COCc1ccccc1
+   c1c(CO)cccc1.CO>>COCc1ccccc1
+   c1cc(CO)ccc1.OC>>COCc1ccccc1
+   c1cccc(c1)CO.CO>>COCc1ccccc1
+ 
+   All reagents are shuffled, and also all reactants SMILES are written in random anti-canonical order.
+   Maximum number of variants is controlled by RND parameter.
+
+*/
 
 #include <openbabel/obconversion.h>
 #include <openbabel/mol.h>
@@ -31,10 +53,17 @@ int main(int argc, char **argv)
          return EXIT_FAILURE;
     }
     
+    //for reagents we use anti-canonical
     OpenBabel::OBConversion conv;
     conv.SetInAndOutFormats("SMI", "SMI"); 
-    conv.SetOptions("Cn", OpenBabel::OBConversion::OUTOPTIONS);
     conv.SetOutStream(&std::cout);
+    conv.SetOptions("Cn", OpenBabel::OBConversion::OUTOPTIONS);
+
+    //but for products canonical
+    OpenBabel::OBConversion conv_c;
+    conv_c.SetInAndOutFormats("SMI", "SMI"); 
+    conv_c.SetOutStream(&std::cout);
+    conv_c.SetOptions("cn", OpenBabel::OBConversion::OUTOPTIONS);
 
     srand(time(NULL));
 
@@ -104,9 +133,10 @@ int main(int argc, char **argv)
             return EXIT_FAILURE;
         }
   
+        //print product in canonical way 
         std::stringstream prod;
-        conv.SetOutStream(&prod);
-        if(!conv.Write(&products[0]))
+        conv_c.SetOutStream(&prod);
+        if(!conv_c.Write(&products[0]))
         {
             printf("Error writing the product on line %d.\n", lines);
             return EXIT_FAILURE;
@@ -116,8 +146,6 @@ int main(int argc, char **argv)
         pmol.erase(pmol.length() - 1);
 
         std::set <std::string> offer;
-        bool canon = false;
- 
         for(int rnd = 0; rnd < RND; rnd++)
         {
             const int reactants_len = reactants.size();
@@ -168,16 +196,11 @@ int main(int argc, char **argv)
                  res_left << left[i] << ".";
              res_left << left[reactants_len-1] << ">>" << pmol; 
 
-             if(pmol == left[reactants_len-1])
-                canon = true;          
-
              offer.insert(res_left.str());
         }            
 
         for(std::set<std::string>::const_iterator it = offer.begin(); it != offer.end(); ++it)
             printf("%s\n", (*it).c_str());       
-        if (!canon)        
-            printf("%s>>%s\n", pmol.c_str(), pmol.c_str());
         
     }	
 
