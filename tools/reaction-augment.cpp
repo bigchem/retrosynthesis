@@ -1,4 +1,6 @@
 
+
+
 #include <openbabel/obconversion.h>
 #include <openbabel/mol.h>
 #include <fstream>
@@ -10,13 +12,25 @@
 #include <time.h>
 #include <set>
 
+const int RND = 10;
+
 int main(int argc, char **argv)
 {
+    if(argc != 2)
+    {
+         printf("Usage: %s data-file.\n", argv[0]);
+         return EXIT_SUCCESS;
+    }
+
     std::ifstream ifs;
     ifs.open(argv[1], std::ifstream::in);
-
-    const int RND = 10;
-
+   
+    if(!ifs.good())
+    {
+         fprintf(stderr, "Problem with the file: %s\n", argv[1]);
+         return EXIT_FAILURE;
+    }
+    
     OpenBabel::OBConversion conv;
     conv.SetInAndOutFormats("SMI", "SMI"); 
     conv.SetOptions("Cn", OpenBabel::OBConversion::OUTOPTIONS);
@@ -24,20 +38,26 @@ int main(int argc, char **argv)
 
     srand(time(NULL));
 
-    FILE * fp = fopen("train.smi", "w");
-
     int lines = 0;
-    while(!ifs.eof())
+    while(true)
     {
-        lines++;
-        printf("%d\n", lines);
+        lines++;        
 
         std::string line;
         getline(ifs, line);
+        if(ifs.eof())
+           break;
 
         std::vector<std::string> items;
         boost::algorithm::split(items, line, boost::algorithm::is_any_of(">"));
-        
+     
+        //reactants>reagents>products
+        if(items.size() != 3)
+        {
+             fprintf(stderr, "Erron on line: %d.\n", lines);
+             return EXIT_FAILURE;
+        }        
+ 
         std::vector<std::string> compounds;
         boost::algorithm::split(compounds, items[0], boost::algorithm::is_any_of("."));
   
@@ -54,7 +74,7 @@ int main(int argc, char **argv)
             conv.SetInStream(&in);
             if(!conv.Read(&mol))
 	    {
-                 printf("Error: %d!\n", lines);
+                 fprintf(stderr, "Error reading a molecule on line: %d!\n", lines);
                  return EXIT_FAILURE;
             }
              
@@ -62,7 +82,7 @@ int main(int argc, char **argv)
         }
      
         //products
-        boost::algorithm::split(compounds, items[0], boost::algorithm::is_any_of("."));
+        boost::algorithm::split(compounds, items[2], boost::algorithm::is_any_of("."));
         for(int i=0; i< compounds.size(); ++i)
         {
             std::stringstream in;
@@ -71,18 +91,18 @@ int main(int argc, char **argv)
             conv.SetInStream(&in);
             if(!conv.Read(&mol))
 	    {
-                 printf("Error: %d!\n", lines);
+                 fprintf(stderr, "Error reading a molecule on line: %d!\n", lines);
                  return EXIT_FAILURE;
             }
              
             products.push_back(mol);
         }
 
-        //if(products.size() != 1)
-        //{
-        //    printf("Attention! More than one product found on line %d.\n", lines);
-        //    return EXIT_FAILURE;
-        //}
+        if(products.size() != 1)
+        {
+            fprintf(stderr, "More than one product found on line %d.\n", lines);
+            return EXIT_FAILURE;
+        }
   
         std::stringstream prod;
         conv.SetOutStream(&prod);
@@ -134,7 +154,7 @@ int main(int argc, char **argv)
                  conv.SetOutStream(&out);
                  if(!conv.Write(&reactants[i]))
                  {
-                     printf("Error: %d!\n", lines);
+                     fprintf(stderr, "Error writing molecule on line: %d!\n", lines);
                      return EXIT_FAILURE;
                  }
                  
@@ -154,16 +174,16 @@ int main(int argc, char **argv)
              offer.insert(res_left.str());
         }            
 
-        for (std::set<std::string>::const_iterator it = offer.begin(); it != offer.end(); ++it)
-            fprintf(fp, "%s\n", (*it).c_str());       
+        for(std::set<std::string>::const_iterator it = offer.begin(); it != offer.end(); ++it)
+            printf("%s\n", (*it).c_str());       
         if (!canon)        
-             fprintf(fp, "%s>>%s\n", pmol.c_str(), pmol.c_str());
+            printf("%s>>%s\n", pmol.c_str(), pmol.c_str());
         
     }	
 
-    fclose(fp);
+
     ifs.close();
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
