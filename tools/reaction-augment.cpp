@@ -1,0 +1,169 @@
+
+#include <openbabel/obconversion.h>
+#include <openbabel/mol.h>
+#include <fstream>
+#include <sstream>
+#include <boost/algorithm/string.hpp>
+#include <vector>
+#include <list>
+#include <stdlib.h>
+#include <time.h>
+#include <set>
+
+int main(int argc, char **argv)
+{
+    std::ifstream ifs;
+    ifs.open(argv[1], std::ifstream::in);
+
+    const int RND = 10;
+
+    OpenBabel::OBConversion conv;
+    conv.SetInAndOutFormats("SMI", "SMI"); 
+    conv.SetOptions("Cn", OpenBabel::OBConversion::OUTOPTIONS);
+    conv.SetOutStream(&std::cout);
+
+    srand(time(NULL));
+
+    FILE * fp = fopen("train.smi", "w");
+
+    int lines = 0;
+    while(!ifs.eof())
+    {
+        lines++;
+        printf("%d\n", lines);
+
+        std::string line;
+        getline(ifs, line);
+
+        std::vector<std::string> items;
+        boost::algorithm::split(items, line, boost::algorithm::is_any_of(">"));
+        
+        std::vector<std::string> compounds;
+        boost::algorithm::split(compounds, items[0], boost::algorithm::is_any_of("."));
+  
+        std::vector<OpenBabel::OBMol> reactants;
+        std::vector<OpenBabel::OBMol> products;  
+
+        //reactants
+        OpenBabel::OBMol mol; 
+        for(int i=0; i< compounds.size(); ++i)
+        {
+            std::stringstream in;
+            in.str(compounds[i]);
+            
+            conv.SetInStream(&in);
+            if(!conv.Read(&mol))
+	    {
+                 printf("Error: %d!\n", lines);
+                 return EXIT_FAILURE;
+            }
+             
+            reactants.push_back(mol);
+        }
+     
+        //products
+        boost::algorithm::split(compounds, items[0], boost::algorithm::is_any_of("."));
+        for(int i=0; i< compounds.size(); ++i)
+        {
+            std::stringstream in;
+            in.str(compounds[i]);
+           
+            conv.SetInStream(&in);
+            if(!conv.Read(&mol))
+	    {
+                 printf("Error: %d!\n", lines);
+                 return EXIT_FAILURE;
+            }
+             
+            products.push_back(mol);
+        }
+
+        //if(products.size() != 1)
+        //{
+        //    printf("Attention! More than one product found on line %d.\n", lines);
+        //    return EXIT_FAILURE;
+        //}
+  
+        std::stringstream prod;
+        conv.SetOutStream(&prod);
+        if(!conv.Write(&products[0]))
+        {
+            printf("Error writing the product on line %d.\n", lines);
+            return EXIT_FAILURE;
+        }
+
+        std::string pmol = prod.str();
+        pmol.erase(pmol.length() - 1);
+
+        std::set <std::string> offer;
+        bool canon = false;
+ 
+        for(int rnd = 0; rnd < RND; rnd++)
+        {
+            const int reactants_len = reactants.size();
+            std::vector<int> inds(reactants_len, -1);
+           
+            for(int i=0; i< reactants_len; i++)
+            {               
+                while(true)
+                {
+                   int pos = rand() % reactants_len;
+                   int found = 0;
+                   for(int j=0; j< i; j++)
+                      if(pos == inds[j]) 
+                      {
+                          found = 1;
+                          break;
+                      }
+
+                   if(!found)
+                   {
+                       inds[i] = pos;
+                       break;
+                   }
+                }
+            }
+
+            std::vector<std::string> left(reactants.size());
+            std::vector<std::string> right(products.size());
+
+            for(int i=0; i< reactants.size(); ++i)
+            {      
+                 std::stringstream out;
+
+                 conv.SetOutStream(&out);
+                 if(!conv.Write(&reactants[i]))
+                 {
+                     printf("Error: %d!\n", lines);
+                     return EXIT_FAILURE;
+                 }
+                 
+                 std::string nmol = out.str();
+                 nmol.erase(nmol.length() - 1);
+                 left[inds[i]] = nmol;                 
+             }
+ 
+             std::stringstream res_left;
+             for(int i=0; i< reactants_len-1; i++)
+                 res_left << left[i] << ".";
+             res_left << left[reactants_len-1] << ">>" << pmol; 
+
+             if(pmol == left[reactants_len-1])
+                canon = true;          
+
+             offer.insert(res_left.str());
+        }            
+
+        for (std::set<std::string>::const_iterator it = offer.begin(); it != offer.end(); ++it)
+            fprintf(fp, "%s\n", (*it).c_str());       
+        if (!canon)        
+             fprintf(fp, "%s>>%s\n", pmol.c_str(), pmol.c_str());
+        
+    }	
+
+    fclose(fp);
+    ifs.close();
+
+    return 0;
+}
+
