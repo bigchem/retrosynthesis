@@ -51,9 +51,9 @@ vocab_size = len(chars);
 char_to_ix = { ch:i for i,ch in enumerate(chars) }
 ix_to_char = { i:ch for i,ch in enumerate(chars) }
 
-max_predict = 160;  
+max_predict = 160;
 TOPK = 1;
-NUM_EPOCHS = 1;
+NUM_EPOCHS = 50;
 
 BATCH_SIZE = 32
 N_HIDDEN = 512
@@ -69,8 +69,8 @@ def GetPosEncodingMatrix(max_len, d_emb):
 		if pos != 0 else np.zeros(d_emb)
 			for pos in range(max_len)
 			])
-	pos_enc[1:, 0::2] = np.sin(pos_enc[1:, 0::2]) 
-	pos_enc[1:, 1::2] = np.cos(pos_enc[1:, 1::2]) 
+	pos_enc[1:, 0::2] = np.sin(pos_enc[1:, 0::2])
+	pos_enc[1:, 1::2] = np.cos(pos_enc[1:, 1::2])
 	return pos_enc
 
 #calc positional encodings only one time
@@ -191,7 +191,7 @@ def gen(mdl, product):
 
 def generate2(product, res, mdl):
 
-   #print(product);        
+   #print(product);
 
    lines = [];
    lines.append(product + " >> " + res);
@@ -442,6 +442,8 @@ def main():
     l_embed = layers.Add()([l_embed, l_pos]);
     l_embed = layers.Dropout(rate = 0.1)(l_embed);
 
+    l_encoders = [];
+
     for layer in range(N_BLOCK):
 
        #self attention
@@ -460,8 +462,10 @@ def main():
        l_ff = layers.Add()([l_att, l_drop]);
        l_embed = LayerNormalization()(l_ff);
 
+       l_encoders.append(l_embed);
+
     #bottleneck
-    l_encoder = l_embed;
+    #l_encoder = l_embed;
 
     l_dec = layers.Input(shape =(None,)) ;
     l_dmask = layers.Input(shape =(None, None,));
@@ -483,7 +487,7 @@ def main():
        l_att = LayerNormalization()(l_add);
 
        #attention to the encoder
-       l_o = [ SelfLayer()([l_att, l_encoder, l_encoder, l_emask]) for i in range(N_SELF)];
+       l_o = [ SelfLayer()([l_att, l_encoders[layer], l_encoders[layer], l_emask]) for i in range(N_SELF)];
        l_con = layers.Concatenate()(l_o);
        l_dense = layers.TimeDistributed(layers.Dense(EMBEDDING_SIZE)) (l_con);
        l_drop = layers.Dropout(rate=0.1)(l_dense);
@@ -509,7 +513,7 @@ def main():
        loss = K.mean(loss);
        return loss;
 
-    def masked_acc(y_true, y_pred):       
+    def masked_acc(y_true, y_pred):
        mask = tf.cast(tf.not_equal(tf.reduce_sum(y_true, -1), 0), 'float32');
        eq = K.cast(K.equal(K.argmax(y_true, axis=-1), K.argmax(y_pred, axis = -1)), 'float32');
        eq = tf.reduce_sum(eq * mask, -1) / tf.reduce_sum(mask, -1);
@@ -525,11 +529,14 @@ def main():
     except:
        pass;
 
+    try:
+       mdl.load_weights(fpath + "retrosynthesis-12.h5");
+    except: pass;
+
     if len(sys.argv) == 2 and sys.argv[1] == "validate":
-       mdl.load_weights(fpath);
        validate(mdl);
        sys.exit(0);
-  
+
 
     #evaluate before training
     def try_synthesis():
@@ -539,7 +546,7 @@ def main():
         for t in testmols:
            res = gen(mdl, t);
            print(t, " >> ", res);
-    
+
     try_synthesis();
 
     print("Training ...")
@@ -610,4 +617,3 @@ def main():
 
 if __name__ == '__main__':
     main();
-
