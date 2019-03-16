@@ -4,8 +4,8 @@ import numpy as np
 
 f = [];
 
-for i in range(27,47,1):
-   f.append(h5py.File("8-64-512-8-2/rnn-" + str(i) + ".h5", "r+"));
+for i in range(39,49,1):
+   f.append(h5py.File("16-64-512-8-2/retrosynthesis-" + str(i) + ".h5", "r+"));
 
 keys = list(f[0].keys());
 for key in keys:

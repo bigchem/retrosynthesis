@@ -5,23 +5,35 @@ import yaml
 import math
 import os
 import re
-from tqdm import tqdm
-import matplotlib.pyplot as plt
+import h5py
 import numpy as np
+import matplotlib.pyplot as plt
+
+from rdkit import Chem
+
+#suppress INFO, WARNING, and ERROR messages of Tensorflow
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import tensorflow as tf
-
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 from tensorflow.keras.utils import plot_model
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
-from tensorflow.keras.callbacks import EarlyStopping, TerminateOnNaN
+
+import argparse
+from tqdm import tqdm
+
+#custom layers
+from layers import PositionLayer, MaskLayerLeft, \
+                   MaskLayerRight, MaskLayerTriangular, \
+                   SelfLayer, LayerNormalization
+
+#seed = 0;
+#tf.random.set_random_seed(seed);
+#np.random.seed(seed);
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True;
 K.set_session(tf.Session(config=config))
-
-from rdkit import Chem
 
 class suppress_stderr(object):
    def __init__(self):
@@ -37,46 +49,22 @@ class suppress_stderr(object):
        for fd in self.null_fds + self.save_fds:
           os.close(fd)
 
-seed = 0;
 
-tf.random.set_random_seed(seed);
-np.random.seed(seed);
-
-np.set_printoptions(threshold=np.nan)
-
-#may be different
-chars = "^#%()+-./0123456789=>@ABCFGHIKLMNOPRSTVXZ[\]abcdegilnoprstu$";
+chars = " ^#%()+-./0123456789=@ABCDEFGHIKLMNOPRSTVXYZ[\\]abcdefgilmnoprstuy$"; #UPTSO
+#chars = " ^#()+-./123456789=@BCFHIKLMNOPSZ[\\]cdegilnorstu$"; #nadine
 vocab_size = len(chars);
 
 char_to_ix = { ch:i for i,ch in enumerate(chars) }
 ix_to_char = { i:ch for i,ch in enumerate(chars) }
 
-max_predict = 160;
+max_predict = 160;  #max for nadine database
 TOPK = 1;
-NUM_EPOCHS = 50;
+NUM_EPOCHS = 1000;
 
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 N_HIDDEN = 512
 EMBEDDING_SIZE = 64;
 KEY_SIZE = EMBEDDING_SIZE;
-
-N_SELF = 8;
-N_BLOCK = 2;
-
-def GetPosEncodingMatrix(max_len, d_emb):
-	pos_enc = np.array([
-		[pos / np.power(10000, 2 * (j // 2) / d_emb) for j in range(d_emb)]
-		if pos != 0 else np.zeros(d_emb)
-			for pos in range(max_len)
-			])
-	pos_enc[1:, 0::2] = np.sin(pos_enc[1:, 0::2])
-	pos_enc[1:, 1::2] = np.cos(pos_enc[1:, 1::2])
-	return pos_enc
-
-#calc positional encodings only one time
-#then just copy slices needed to the batches
-GEO = GetPosEncodingMatrix(2048, EMBEDDING_SIZE);
-
 
 def gen_data(data, progn = False):
 
@@ -111,44 +99,32 @@ def gen_data(data, progn = False):
 
     #products
     x = np.zeros((batch_size, nl), np.int8);
-    mx = np.zeros((batch_size, nl, nl), np.int8);
-    px = np.zeros((batch_size, nl, EMBEDDING_SIZE), np.float32);
+    mx = np.zeros((batch_size, nl), np.int8);
 
     #reactants
     y = np.zeros((batch_size, nr), np.int8);
-    py = np.zeros((batch_size, nr, EMBEDDING_SIZE), np.float32);
-
-    #mask for self-attention( ~triangular)
-    my = np.zeros((batch_size, nr, nr), np.int8);
-    #mask for the decoder attention
-    mz = np.zeros((batch_size, nr, nl), np.int8);
+    my = np.zeros((batch_size, nr), np.int8);
 
     #for output
     z = np.zeros((batch_size, nr, vocab_size), np.int8);
 
     for cnt in range(batch_size):
-
         product = "^" + left[cnt] + "$";
         reactants = "^" + right[cnt];
 
         if progn == False: reactants += "$";
-
         for i, p in enumerate(product):
            x[cnt, i] = char_to_ix[ p] ;
-           px[cnt, i] = GEO[i+1, :EMBEDDING_SIZE ];
 
-        mx[cnt, :, :i+1] = 1;
-        mz[cnt, :, :i+1] = 1;
-
+        mx[cnt, :i+1] = 1;
         for i in range( (len(reactants) -1) if progn == False else len(reactants ) ):
            y[cnt, i] = char_to_ix[ reactants[i]];
-           py[cnt, i] = GEO[i+1, :EMBEDDING_SIZE ];
            if progn == False:
               z[cnt, i, char_to_ix[ reactants[i + 1] ]] = 1;
-           my [cnt, i, :i+1] = 1;
-        my[cnt, i:, :i+1] =1;
 
-    return [x, mx, px, y, my, mz, py], z;
+        my[cnt, :i+1] =1;
+
+    return [x, mx, y, my], z;
 
 def data_generator(fname):
 
@@ -162,8 +138,8 @@ def data_generator(fname):
             f.seek(0,0);
             if len(lines) > 0:
                yield gen_data(lines);
-               lines = [];
-               break;
+            lines = [];
+            break;
          lines.append(line);
       if len(lines) > 0:
           yield gen_data(lines);
@@ -189,9 +165,7 @@ def gen(mdl, product):
    return res;
 
 
-def generate2(product, res, mdl):
-
-   #print(product);
+def generate2(product, T, res, mdl):
 
    lines = [];
    lines.append(product + " >> " + res);
@@ -200,14 +174,16 @@ def generate2(product, res, mdl):
    i = len(res);
 
    n = mdl.predict(v[0]);
-   p = n[0, i, :];
 
+   #increase temperature during decoding steps
+   p = n[0, i, :] / T;
    p = np.exp(p) / np.sum(np.exp(p));
+
    return p;
 
-def gen_beam(mdl, product, greedy = False, beam_szie = 7):
+def gen_beam(mdl, T, product, beam_size=7):
 
-   if greedy:
+   if beam_size <= 1: #perform greedy search
       answer = [];
 
       reags = gen(mdl, product).split(".");
@@ -223,8 +199,6 @@ def gen_beam(mdl, product, greedy = False, beam_szie = 7):
             answer.append(sorted(list(sms)));
       return answer;
 
-   #beam-search
-
    lines = [];
    scores = [];
    final_beams = [];
@@ -236,7 +210,7 @@ def gen_beam(mdl, product, greedy = False, beam_szie = 7):
    for step in range(max_predict):
 
       if step == 0:
-         p = generate2(product, "", mdl);
+         p = generate2(product, T, "", mdl);
          nr = np.zeros((vocab_size, 2));
          for i in range(vocab_size):
             nr [i ,0 ] = -math.log10(p[i]);
@@ -247,12 +221,14 @@ def gen_beam(mdl, product, greedy = False, beam_szie = 7):
          nr = np.zeros(( cb * vocab_size, 2));
 
          for i in range(cb):
-            p = generate2(product, lines[i], mdl);
+            p = generate2(product, T, lines[i], mdl);
             for j in range(vocab_size):
                nr[ i* vocab_size + j, 0] = -math.log10(p[j]) + scores[i];
                nr[ i* vocab_size + j, 1] = i * 100 + j;
 
       y = nr [ nr[:, 0].argsort()] ;
+      #print(y);
+      #print("~~~~~~");
 
       new_beams = [];
       new_scores = [];
@@ -265,7 +241,7 @@ def gen_beam(mdl, product, greedy = False, beam_szie = 7):
          if c == '$':
              added = lines[beamno] + c;
              if added != "$":
-                final_beams.append( [ lines[beamno] + c, y[i,0] ]);
+                final_beams.append( [ lines[beamno] + c, y[i,0]]);
              beam_size -= 1;
          else:
              new_beams.append( lines[beamno] + c );
@@ -281,7 +257,6 @@ def gen_beam(mdl, product, greedy = False, beam_szie = 7):
 
    final_beams = list(sorted(final_beams, key=lambda x:x[1]))[:TOPK];
    answer = [];
-   scores = [];
 
    for k in range(TOPK):
       reags = set(final_beams[k][0].split("."));
@@ -294,67 +269,11 @@ def gen_beam(mdl, product, greedy = False, beam_szie = 7):
             if m is not None:
                sms.add(Chem.MolToSmiles(m));
          if len(sms):
-            answer.append(sorted(list(sms)));
-            scores.append(final_beams[k][1]);
-
-   return answer, scores;
+            answer.append([sorted(list(sms)), final_beams[k][1] ]);
+   return answer;
 
 
-class LayerNormalization(tf.keras.layers.Layer):
-	def __init__(self, eps=1e-6, **kwargs):
-		self.eps = eps
-		super(LayerNormalization, self).__init__(**kwargs)
-	def build(self, input_shape):
-		self.gamma = self.add_weight(name='gamma', shape=input_shape[-1:],
-                             initializer= tf.keras.initializers.Ones(), trainable=True)
-		self.beta = self.add_weight(name='beta', shape=input_shape[-1:],
-                             initializer= tf.keras.initializers.Zeros(), trainable=True)
-		super(LayerNormalization, self).build(input_shape)
-	def call(self, x):
-		mean = K.mean(x, axis=-1, keepdims=True)
-		std = K.std(x, axis=-1, keepdims=True)
-		return self.gamma * (x - mean) / (std + self.eps) + self.beta
-	def compute_output_shape(self, input_shape):
-		return input_shape;
-
-class SelfLayer(tf.keras.layers.Layer):
-
-    def __init__(self, **kwargs):
-        self.denom = math.sqrt(EMBEDDING_SIZE);
-        super(SelfLayer, self).__init__(**kwargs);
-
-    def build(self, input_shape):
-
-        self.K = self.add_weight( shape =(EMBEDDING_SIZE, KEY_SIZE),
-                                name="K", trainable = True,
-                                initializer = 'glorot_uniform');
-        self.V = self.add_weight( shape =(EMBEDDING_SIZE, KEY_SIZE),
-                                name="V", trainable = True,
-                                initializer = 'glorot_uniform');
-        self.Q = self.add_weight( shape =(EMBEDDING_SIZE, KEY_SIZE),
-                                name="Q", trainable = True,
-                                initializer = 'glorot_uniform');
-        super(SelfLayer, self).build(input_shape);
-
-    def call(self, inputs):
-
-        Q = tf.tensordot(inputs[0], self.Q, axes = [[2], [0]]);
-        K = tf.tensordot(inputs[1], self.K, axes = [[2], [0]]);
-        V = tf.tensordot(inputs[2], self.V, axes = [[2], [0]]);
-
-        A = tf.keras.backend.batch_dot(Q, tf.transpose(K, (0,2,1)));
-        A = A / self.denom;
-
-        A = tf.exp(A) * inputs[3];
-        A = A / tf.reshape( tf.reduce_sum(A, axis = 2), (-1, tf.shape(inputs[0])[1] ,1));
-
-        A = layers.Dropout(rate = 0.1) (A);
-        return tf.keras.backend.batch_dot(A, V);
-
-    def compute_output_shape(self, input_shape):
-        return (input_shape[0],input_shape[1], KEY_SIZE);
-
-def validate(mdl, ftest="../data/retrosynthesis-test.smi"):
+def validate(ftest, mdls, Ts):
 
    NTEST = sum(1 for line in open(ftest,"r"));
    fv = open(ftest, "r");
@@ -368,8 +287,8 @@ def validate(mdl, ftest="../data/retrosynthesis-test.smi"):
       if len(line) == 0: break;
 
       reaction = line.split(">");
-      product = reaction[2].strip();
-      reagents = reaction[0].strip();
+      product = reaction[0].strip();
+      reagents = reaction[2];
 
       answer = [];
       reags = set(reagents.split("."));
@@ -388,38 +307,38 @@ def validate(mdl, ftest="../data/retrosynthesis-test.smi"):
 
       cnt += 1;
       beams = [];
-      scores = [];
-      try:
-         beams, scores = gen_beam(mdl, product);
-      except:
-         pass;
 
-      #print(product, answer, beams);
+      for i in range(len(mdls)):
+         try:
+            beams += gen_beam(mdls[i], Ts[i], product);
+         except:
+            pass;
+
       if len (beams) == 0:
          continue;
 
       answer_s = set(answer);
-      found = False;
-      part = False;
+      ans = [];
 
-      score = 0.0;
-      for no in range(len(beams)):
-         beam = set(beams[no]);
-         score = scores[no];
+      for k in range(len(beams)):
+         ans.append(beams[k][0]);
 
+      for beam in ans:
+         beam = set(beam);
          right = answer_s.intersection(beam);
          if len(right) == 0: continue;
          if len(right) == len(answer):
              ex += 1;
-             found = True;
+             longest += 1;
+
              print("CNT: ", cnt, ex /cnt *100.0, answer);
+             break;
 
          substrate1 = max( list(right) , key=len);
          substrate2 = max( answer, key=len);
 
          if substrate1 == substrate2:
             longest += 1;
-            part = True;
 
    fv.close();
 
@@ -429,25 +348,36 @@ def validate(mdl, ftest="../data/retrosynthesis-test.smi"):
 
    return ex / cnt * 100.0;
 
-def main():
+def buildNetwork(n_block, n_self):
 
     print("Building network ...");
 
+    #product
     l_in = layers.Input( shape= (None,));
-    l_mask = layers.Input( shape= (None, None,));
-    l_pos = layers.Input(shape=(None, EMBEDDING_SIZE,));
+    l_mask = layers.Input( shape= (None,));
+
+    #reagents
+    l_dec = layers.Input(shape =(None,)) ;
+    l_dmask = layers.Input(shape =(None,));
+
+    #positional encodings for product and reagents, respectively
+    l_pos = PositionLayer(EMBEDDING_SIZE)(l_mask);
+    l_dpos = PositionLayer(EMBEDDING_SIZE)(l_dmask);
+
+    l_emask = MaskLayerRight()([l_dmask, l_mask]);
+    l_right_mask = MaskLayerTriangular()(l_dmask);
+    l_left_mask = MaskLayerLeft()(l_mask);
 
     #encoder
-    l_embed = layers.Embedding(input_dim = vocab_size, output_dim = EMBEDDING_SIZE, input_length = None, name="embed")(l_in);
-    l_embed = layers.Add()([l_embed, l_pos]);
+    l_voc = layers.Embedding(input_dim = vocab_size, output_dim = EMBEDDING_SIZE, input_length = None);
+
+    l_embed = layers.Add()([ l_voc(l_in), l_pos]);
     l_embed = layers.Dropout(rate = 0.1)(l_embed);
 
-    l_encoders = [];
-
-    for layer in range(N_BLOCK):
+    for layer in range(n_block):
 
        #self attention
-       l_o = [ SelfLayer() ([l_embed, l_embed, l_embed, l_mask]) for i in range(N_SELF)];
+       l_o = [ SelfLayer(EMBEDDING_SIZE, KEY_SIZE) ([l_embed, l_embed, l_embed, l_left_mask]) for i in range(n_self)];
 
        l_con = layers.Concatenate()(l_o);
        l_dense = layers.TimeDistributed(layers.Dense(EMBEDDING_SIZE)) (l_con);
@@ -462,23 +392,17 @@ def main():
        l_ff = layers.Add()([l_att, l_drop]);
        l_embed = LayerNormalization()(l_ff);
 
-       l_encoders.append(l_embed);
-
     #bottleneck
-    #l_encoder = l_embed;
+    l_encoder = l_embed;
 
-    l_dec = layers.Input(shape =(None,)) ;
-    l_dmask = layers.Input(shape =(None, None,));
-    l_emask = layers.Input(shape = (None, None,));
-    l_dpos = layers.Input(shape =(None, EMBEDDING_SIZE,));
+    #l_embed = layers.Embedding(input_dim = vocab_size, output_dim = EMBEDDING_SIZE, input_length = None)(l_dec);
+    l_embed = layers.Add()([l_voc(l_dec), l_dpos]);
+    l_embed = layers.Dropout(rate = 0.1)(l_embed);
 
-    l_embed = layers.Embedding(input_dim = vocab_size, output_dim = EMBEDDING_SIZE, input_length = None)(l_dec);
-    l_embed = layers.Add()([l_embed, l_dpos]);
-
-    for layer in range(N_BLOCK):
+    for layer in range(n_block):
 
        #self attention
-       l_o = [ SelfLayer()([l_embed, l_embed, l_embed, l_dmask]) for i in range(N_SELF)];
+       l_o = [ SelfLayer(EMBEDDING_SIZE, KEY_SIZE)([l_embed, l_embed, l_embed, l_right_mask]) for i in range(n_self)];
 
        l_con = layers.Concatenate()(l_o);
        l_dense = layers.TimeDistributed(layers.Dense(EMBEDDING_SIZE)) (l_con);
@@ -487,7 +411,7 @@ def main():
        l_att = LayerNormalization()(l_add);
 
        #attention to the encoder
-       l_o = [ SelfLayer()([l_att, l_encoders[layer], l_encoders[layer], l_emask]) for i in range(N_SELF)];
+       l_o = [ SelfLayer(EMBEDDING_SIZE, KEY_SIZE)([l_att, l_encoder, l_encoder, l_emask]) for i in range(n_self)];
        l_con = layers.Concatenate()(l_o);
        l_dense = layers.TimeDistributed(layers.Dense(EMBEDDING_SIZE)) (l_con);
        l_drop = layers.Dropout(rate=0.1)(l_dense);
@@ -504,10 +428,10 @@ def main():
     l_out = layers.TimeDistributed(layers.Dense(vocab_size,
                                           use_bias=False)) (l_embed);
 
-    mdl = tf.keras.Model([l_in, l_mask, l_pos, l_dec, l_dmask, l_emask, l_dpos], l_out);
+    mdl = tf.keras.Model([l_in, l_mask, l_dec, l_dmask], l_out);
 
     def masked_loss(y_true, y_pred):
-       loss = tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred);
+       loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_true, logits=y_pred);
        mask = tf.cast(tf.not_equal(tf.reduce_sum(y_true, -1), 0), 'float32');
        loss = tf.reduce_sum(loss * mask, -1) / tf.reduce_sum(mask, -1);
        loss = K.mean(loss);
@@ -520,100 +444,125 @@ def main():
        eq = K.mean(eq);
        return eq;
 
-    mdl.compile(optimizer = 'adam', loss = masked_loss, metrics=[masked_acc]);
+    mdl.compile(optimizer = 'adam', loss = masked_loss, metrics=['accuracy', masked_acc]);
     mdl.summary();
 
-    fpath = str(BATCH_SIZE) + "-" + str(EMBEDDING_SIZE) + "-" + str(N_HIDDEN) + "-" + str(N_SELF) + "-" + str(N_BLOCK) + "/";
-    try:
-       os.mkdir(fpath);
-    except:
-       pass;
+    return mdl;
 
-    try:
-       mdl.load_weights(fpath + "retrosynthesis-12.h5");
-    except: pass;
 
-    if len(sys.argv) == 2 and sys.argv[1] == "validate":
-       validate(mdl);
-       sys.exit(0);
+def main():
+
+    parser = argparse.ArgumentParser(description='Transformer retrosynthesis model.')
+    parser.add_argument('--layers', type=int, default =3,
+                    help='Number of layers in encoder\'s module. Default 3.');
+    parser.add_argument('--heads', type=int, default =10,
+                    help='Number of attention heads. Default 10.');
+
+    parser.add_argument('--validate', action='store', type=str, help='Validation regime.', required=False);
+    parser.add_argument('--model', type=str, default ='../models/retrosynthesis-long.h5', help='A model to be used during validation. Default file ../models/retrosynthesis-long.h5', required=False);
+    parser.add_argument('--temperature', type=float, default =1.2, help='Temperature for decoding. Default 1.2', required=False);
+
+    args = parser.parse_args();
+
+    mdl = buildNetwork(args.layers, args.heads);
+
+    if args.validate is not None:
+        mdl.load_weights(args.model);
+        acc= validate(args.validate, [mdl], [args.temperature]);
+        sys.exit(0);
 
 
     #evaluate before training
-    def try_synthesis():
-        testmols = ["CN1CCc2n(CCc3cncnc3)c3ccc(C)cc3c2C1",
-        	    "Clc1ccc2n(CC(c3ccc(F)cc3)(O)C(F)(F)F)c3CCN(C)Cc3c2c1",
-   	            "Ic1ccc2n(CC(=O)N3CCCCC3)c3CCN(C)Cc3c2c1"];
-        for t in testmols:
-           res = gen(mdl, t);
-           print(t, " >> ", res);
+    def printProgress():
+       print("");
+       for t in ["CN1CCc2n(CCc3cncnc3)c3ccc(C)cc3c2C1",
+    	         "Clc1ccc2n(CC(c3ccc(F)cc3)(O)C(F)(F)F)c3CCN(C)Cc3c2c1",
+    	         "Ic1ccc2n(CC(=O)N3CCCCC3)c3CCN(C)Cc3c2c1"]:
+          res = gen(mdl, t);
+          print(t, " >> ", res);
 
-    try_synthesis();
+    printProgress();
+
+    try:
+        os.mkdir("storage");
+    except:
+        pass;
 
     print("Training ...")
+    lrs = [];
+
     class GenCallback(tf.keras.callbacks.Callback):
 
        def __init__(self, eps=1e-6, **kwargs):
-          self.basic = 256 **-0.5
-          self.warm = 8000**-1.5
           self.steps = 0
+          self.warm = 16000.0;
 
        def on_batch_begin(self, batch, logs={}):
           self.steps += 1;
-          lr = self.basic * min(self.steps**-0.5, self.steps*self.warm);
+          lr = 20.0 * min(1.0, self.steps / self.warm) / max(self.steps, self.warm);
+          lrs.append(lr);
           K.set_value(self.model.optimizer.lr, lr)
 
        def on_epoch_end(self, epoch, logs={}):
 
-          try_synthesis();
-          mdl.save_weights(fpath + "retrosynthesis-" + str(epoch) + ".h5", save_format="h5");
-          return
+          printProgress();
+          if epoch > 90:
+             mdl.save_weights("storage/tr-" + str(epoch+1) + ".h5", save_format="h5");
+
+          if epoch % 100 == 0 and epoch > 0:
+              self.steps = self.warm - 1;
+          return;
 
     try:
 
-        train_file = "../data/retrosynthesis-train.smi";
-        valid_file = "../data/retrosynthesis-valid.smi";
+        train_file = "../data/retrosynthesis-all.smi";
 
         NTRAIN = sum(1 for line in open(train_file));
-        NVALID = sum(1 for line in open(valid_file));
+        print("Number of points: ", NTRAIN);
 
-        print("Number of points: ", NTRAIN, NVALID);
-
-        callback = [ GenCallback()];
+        callback = [ GenCallback() ];
         history = mdl.fit_generator( generator = data_generator(train_file),
                                      steps_per_epoch = int(math.ceil(NTRAIN / BATCH_SIZE)),
                                      epochs = NUM_EPOCHS,
-                                     validation_data = data_generator(valid_file),
-                                     validation_steps = int(math.ceil(NVALID / BATCH_SIZE)),
                                      use_multiprocessing=False,
                                      shuffle = True,
                                      callbacks = callback);
 
-        mdl.save_weights(fpath + "final.h5", save_format="h5");
+        mdl.save_weights("final.h5", save_format="h5");
+
+        #save raw data
+        np.savetxt("lr.txt", lrs);
+        np.savetxt("loss.txt", history.history['loss']);
+        np.savetxt('accuracy.txt', history.history['masked_acc']);
 
         # summarize history for accuracy
         plt.plot(history.history['masked_acc'])
-        plt.plot(history.history['val_masked_acc'])
         plt.title('model accuracy')
         plt.ylabel('accuracy')
         plt.xlabel('epoch')
         plt.legend(['train', 'test'], loc='upper left')
-        plt.savefig(fpath + "accuracy.pdf");
+        plt.savefig("accuracy.pdf");
 
         plt.clf();
-
         # summarize history for loss
         plt.plot(history.history['loss'])
-        plt.plot(history.history['val_loss'])
         plt.title('model loss')
         plt.ylabel('loss')
         plt.xlabel('epoch')
         plt.legend(['train', 'test'], loc='upper left')
-        plt.savefig(fpath + "loss.pdf");
+        plt.savefig("loss.pdf");
+
+        plt.clf();
+        # summarize history for learning rate
+        plt.plot(lrs)
+        plt.title('model lr')
+        plt.ylabel('lr')
+        plt.xlabel('epoch')
+        plt.legend(['lr'], loc='upper left')
+        plt.savefig("lr.pdf");
 
     except KeyboardInterrupt:
        pass;
-
-    print("Finished successfully!");
 
 if __name__ == '__main__':
     main();
