@@ -1,0 +1,249 @@
+\documentclass{article}
+
+
+\usepackage{arxiv}
+
+\usepackage[utf8]{inputenc} 
+\usepackage[T1]{fontenc}   
+\usepackage{hyperref}      
+\usepackage{url}           
+\usepackage{booktabs}       
+\usepackage{amsfonts}     
+\usepackage{nicefrac}     
+\usepackage{microtype}     
+\usepackage{lipsum}	
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{eqnarray,amsmath}
+
+\title{There and back again: a retrosynthesis tale}
+\date{April 1, 2019}	
+
+\author{
+  Pavel Karpov\thanks{Helmholtz Zentrum M{\"u}nchen -- Research Center for Environmental Health (GmbH), Institute of Structural Biology, Ingolst{\"a}dter Landstra{\ss}e 1, D-85764 Neuherberg, Germany, \url{https://www.helmholtz-muenchen.de/stb/index.html}}\\
+  Institute of Structural Biology\\
+  Helmholtz Zentrum M{\"u}nchen\\
+  Germany, Munich \\
+  \texttt{carpovpv@gmail.com} \\
+  \And
+  Igor V.~Tetko\thanks{BigChem GmbH, \url{https://ochem.eu}} \\
+  Institute of Structural Biology\\
+  Helmholtz Zentrum M{\"u}nchen\\
+  Germany, Munich \\ 
+  \texttt{itetko@vcclab.org} \\
+  \And 
+  Guillaume Godin\\
+  Firmenich International SA,\\
+  Research\&Development Division, \\
+  Switzerland, Geneva \\
+  \texttt{guillaume.godin@firmenich.com}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We describe a Transformer model for a retrosynthetic reaction prediction task. 
+The model is trained end-to-end on 45033 experimental reaction examples extracted 
+from USA patents. Our final model can successfully predict the reactants set for 
+44.2\% of cases on the external test set. During the training procedure, we applied 
+different learning rate schedules and knowledge distillation. These techniques can prevent 
+overfitting and thus can be a reason to get rid of internal validation dataset that 
+is advantageous for deep models with millions of parameters. We investigate 
+the influence of the temperature while decoding the model output probabilities and find 
+that at T=1.3 the final model behaves like a consensus of models and improve accuracy up to 6\%. 
+We also discuss the synergy of applying together the retrosynthetic model to predict 
+reagents and a direct reaction model trained on the same data which makes a prognosis 
+for the product base on reactants.
+\end{abstract}
+
+\keywords{Reaction outcomes prediction \and Computer retrosynthesis \and Character-based models \and Transformer}
+
+\section{Introduction}
+New chemical compounds drive technological advances in material, agricultural, environmental, and medical sciences, thus, embracing all fields of scientific activities which have been bringing social and economic benefits throughout human history. Design of chemicals with predefined properties is an arena of QSAR/QSPR (Quantitative Structure Activity/Property Relationships) approaches aimed at finding correlations between molecular structures and their desired outcomes and then applying these models to optimise activity/property of compounds. 
+
+The advent of deep learning\cite{ChenDrugDiscovery} gave a new impulse for virtual modeling and also opened a venue for a promising set of generative methods based on Recurrent Neural Networks\cite{ErtlLSTM}, Variational Autoencoders\cite{DuvenaudVAE}, and Generative Adversarial Networks trained with reinforcement learning\cite{ORGAN,OlivecronaReinforcment}. These techniques are changing the course of QSAR studies from the observation to the invention: from a virtual screening of available compounds to direct synthesis of new candidates. Generative models can produce big sets of promising molecules and impaired with SMILES-based QSAR methods\cite{TetkoCNF} provide a strong foundation for creating highly optimized focussed libraries, but estimation of synthetic availability of these compounds is an open question though several scores based on fragmentation\cite{ErtlSaScore} and machine learning\cite{ColeySCScore} approaches have been developed. 
+To synthesize a molecule, one should have a plan of a multi-step synthesis and also a set of available reactants. 
+Finding an optimal combination of reactants, reactions, and conditions to obtain the compound with good yield, sufficient quality, and quantity is not a trivial task even for experts in organic chemistry. Recent advances in the computer-aided synthesis planning are reviewed in \cite{ColeyReview,EnkvinstReview}. 
+
+The retrosynthetic analysis worked out by E.\,J.~Corey \cite{Corey} tries to account for all factors while deriving the synthetic route. It iteratively decomposes the molecule on simpler blocks till all of them become available either by purchase or by synthesis described in the literature. At each step, fig. \ref{fig:example}, all possible disconnections (rules) with known reactions simplify the target molecule bringing to the scene less complex compounds. Some of them may be already available, while the others undergo the next step of retrosynthesis decomposition. Due to the recursive nature of the procedure, it can deal with thousands of putative compounds so computational retrosynthetic approaches can greatly help chemists in finding the best routes. Managing of the database of such rules is complicated and more critical the models based on it are not ready to accommodate new reactions and will always be outdated. Almost more than 60 years of developing rule-based systems ended with no remarkable success in synthesis planning programs. Another approach to tackle the problem is to use so-called template-free methods inspired by the success of machine-translation. They don't require the database of templates and rules due to an inherent possibility to derive this information during training directly from a database of organic reactions with clearly designated roles of reactants, products, reagents, and conditions.
+
+The analogy between machine translation and retrosynthesis is evident: each target molecule has 
+its predecessors from which it can be synthesized as every meaningful sentence one can translate 
+from source language to target one. If all parts of a reaction are written in SMILES notation, 
+then our source and target sentence are composed of valid SMILES tokens as words. 
+The main goal of the work is to build a model which could for a given target molecule for example\footnote{
+This reaction is in the test set and it was correctly predicted  by our model. 
+Probability landscapes in the following figures are drawn from this example.} COC(=O)c1cccc(-c2nc3cccnc3[nH]2)c1 in fig. \ref{fig:example}
+correctly predict the set of reactants. Namely, it should predict Nc1cccnc1N.COC(=O)c1cccc(C(=O)O)c1 in this case.
+
+\begin{figure}
+  \centering
+  \includegraphics[scale=0.87]{images/example-reaction.pdf}
+  \caption{An example of a retrosynthetic reaction: on the left side of the arrow the target molecule is depicted, and on the right side the one possible set of reactants that can lead to the target is shown in common chemistry-like scheme and using SMILES notation. Here two successive amidation reactions result in cyclisation and aromatization.}
+  \label{fig:example}
+\end{figure}
+
+Neural sequence-to-sequence (seq2seq) approach has been recently applied for a direct reaction 
+prediction task \cite{SchwallerTranslation,SchwallerTransformer} with outstanding statistical 
+parameters of final models -- 90.4\% of accuracy on test set. Seq2seq modeling has been also tested on 
+retrosynthesis task\cite{Pande}, but due to the complex nature of retrosynthesis itself 
+and difficulty in estimating the correct predictions of reactants
+\footnote{A target molecule usually can be synthesized with different reactions starting from different sets of reactants. 
+The predictions of the model may be correct from organic chemist point of view but differ from 
+the reactant set in ground truth. This may lead to underestimation of effectiveness of models.}, 
+accuracy on the test set was moderate 37.4\% but still comparable to rule-based systems 35.4\%. 
+We questioned about the possibility of improvement models for one-step retrosynthesis utilizing modern neural network architectures 
+and training techniques. Applying the Transformer Model\cite{Transformer}, 
+together with cyclical learning rate schedule\cite{TransformerTips}, 
+and knowledge distillation\cite{Hinton} resulted in a single model with accuracy 44.2\%, 
+that is more than 6\% higher compare to the baseline model\cite{Pande}.  
+
+Our main contributions are:
+\begin{itemize}
+\item We show that for this particular task there is no need to use a vliadation dataset for early-stopping or other parameters optimization. We trained all the parameters directly from the training dataset.
+\item Applying weights averaging, snapshot learning and knowledge distillation helped us to train the most precise model for one-step retrosynthesis prediction.
+\item We show that different chemistry-relevant SMILES tokenization approaches cannot improve the accuracy of the models compared to the simplest letter based schema. 
+\item Increasing the temperature while performing a beam-search procedure improves the accuracy up to 4\%. Almost the same effect as consensus does. 
+\item Using both retrosynthetic model for reactant prediction and a direct model trained on the same data for reaction outcome prognosis allows improving precision of the retrosynthesis model.
+\end{itemize}
+
+\section{Approach}
+\label{sec:approach}
+
+\subsection{Dataset}
+
+In this study we used the same dataset of reactions as in \cite{Pande}. 
+This dataset was filtered from the USPTO database\cite{Lowe} originally derived from the USA patents and 
+contains 50\,000 reactions classified into 10 reaction types\cite{Schneider}. The authors\cite{Pande} further preprocessed the database by 
+splitting multiple products reactions into multiple single products reactions. The resulting dataset contains 40\,029, 5\,004, and 5\,004 reactions for training, validation, and testing respectively. Information about the reaction type 
+was discarded as we aimed at building a general model using SMILES of products and reactants only.
+
+
+\subsection{Model input}
+The seq2seq models were developed to support machine translation where the input is a sentence in one language, and the output is a sentence with approximately the same meaning but in another language. String nature of data implies some tokenization procedures similar to word2vec to be used for preprocessing the input. Most of works in cheminformatics dealing with SMILES tokenize the input with a regexp equal or similar to \cite{SchwallerTranslation}. 
+
+\begin{quote}
+\texttt{token\_regex = "(\textbackslash[[\textasciicircum \textbackslash]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\textbackslash(|\textbackslash)| \textbackslash.|=|\#|-|\textbackslash+|\textbackslash\textbackslash\textbackslash\textbackslash|\textbackslash/|:|\textasciitilde|@|\textbackslash?|>|\textbackslash*|\textbackslash\$|\textbackslash\%[0-9]\{2\}|[0-9])"}.
+\end{quote}
+
+Though such tokenization is more similar to way chemists think, it also has some drawbacks that confuse network by putting forward low represented molecular parts. For example, after applying this regexp to the database one can see some not frequent moieties such as [C@@], [C@@H], [S@@],[C@],[C@H],[N@@+],[se],[C-],[Cl+3]. The thing in brackets according to SMILES specification can be quite a complex gathering not only the element's name itself, but also its isotopic value, stereochemistry configuration, the formal charge, and the number of hydrogens\footnote{We do not want to exclude stereochemistry information from our model as well as charges and explicit hydrogens that will lead to reducing of the dataset. Moreover, work in generative models showed excellent abilities of models to close cycles, for example, c\textbf{1}cc(COC)cccc\textbf{1}. If the model can capture such a long distance relation why should it be cracked on much simplier substrings enclosed by brackets?}. Strictly speaking, to do tokenization right one should also parse the content of brackets just increasing the number of possible words in the vocabulary what eventually leads to the simplest tokenization only with letters. We tried different schemes of tokenization in this work but did not see any improvements in using them over character-based method.
+
+Our final vocabulary has length of 66 symbols\footnote{This vocabulary derived from the complete USPTO set and is a little bit wider than needed for this study. But for future extending of the models it is better to fix the input shape to the biggest possible value.}:
+
+\begin{quote}
+\texttt{chars = " \textasciicircum\#\%()+-.\/0123456789=@ABCDEFGHIKLMNOPRSTVXYZ[\textbackslash\textbackslash]abcdefgilmnoprstuy\$"}
+\end{quote}
+
+To convert a token to a dense vector we used a trainable embedding
+\footnote{The encoder and the decoder use their own embeddings in this study.} of size 64. 
+It is well known that training neural networks in batches is more stable, faster, and leads to more accurate models. 
+To facilitate batch training we also used masks of input strings of shape (batch\_size, max\_length) 
+with elements equal to 1 for those positions where are valid SMILES symbols and 0 everywhere else. 
+
+
+\subsection{Transformer model}
+We used a promising Transformer \cite{Transformer} model for this study which is a new generation of encoder-decoder neural networks family. The architecture is suited for exploration of the internal representation of data by deriving questions ($Q$) the data could be asked for, keys for its indexed knowledge ($K$), and answers written as values ($V$) corresponding to queries and keys. Technically these three entities are simply matrixes learned during the network training. Multiplying them with the input ($X$) gives keys ($k$), questions ($q$), and values ($v$) relevant to a current batch. Equipped with these calculated parameters of the input the self-attention layers transforms it pointing out to some encoding (decoding) parts based on the attention vector. 
+
+The Transformer has wholly got rid of any recurrences or convolutional operations. To tackle distances between elements of a string a positional encoding matrix was proposed with elements equal to the values of trigonometric functions depending on the position in a string and also the position in the embedding direction. Summed with learned embeddings positional encodings do their job linking far located parts of the input together. The output of self-attention layers is then mixed with original data, layer-wise normalized, and passed position-wise through a couple of ordinary dense layers to go further either in next level of self-attention layers or to a decoder as an information-rich vector representing the input. The decoder part of Transformer resembles the encoder but has an additional self-attention layer which corresponds to encoder's output. 
+
+Transformer model shows the state-of-the-art results in machine translation and reaction prediction outcomes \cite{SchwallerTransformer}. The latter work showed that training the Transformer on large and noisy datasets results in a model that can outperform not only other machine models but also well qualified and experienced organic chemists. 
+
+\subsection{Model inference}
+
+The model tries to estimate the probability of the next symbol over the model's vocabulary given all previous symbols in the string. Technically, the Transformer model first calculates logits, $z_i$, and then transforms them to probabilities. 
+\begin{equation}
+z_i = Transformer( \{x_1, x_2, x_3, ..., x_L\}, \{y_1, y_2, y_3, ..., y_{i-1} \})
+\end{equation}
+Here $x_i$ is the input of the models at $i$ position; $L$ -- the length of the input string; $y_i$ is the decoded output of the model up to position $(i-1)$; and $z_i$ -- logits that are to be converted to probabilities:
+\begin{equation}
+\label{eq:t}
+q_i = {{exp(z_i /T) }\over {\sum_{j=0}^{V} exp(z_j /T) }}
+\end{equation}
+where $V$ is the size of the vocabulary (66 in this work) and $T$ stands for the temperature\footnote{Similar to formula of Boltzmann (Gibbs) distribution used in statistical mechanics.} usually assigned to 1.0 in standard softmax layers. With higher $T$ the landscape of the probability distribution becomes more smooth. During the training the model adapts its weights to better predict $q_i$, so $y_i = q_i$. 
+
+During the inference however we have several possibilities how to convert $q_i$ into $y_i$, namely greedy and beam search. The first one picks up a symbol with maximum probability whereas the second one at each step holds $top-K$ ($K$ = beam's size) suggestions of the model and summarises the overall likelihood for each of $K$ final decodings. The beam search allows better inference and the probability landscape exploration compared to the greedy search because at a particular step of decoding it may choose a symbol with less than maximum probability, but the total likelihood of the result can be higher due to more significant probabilities on the next steps.
+
+\subsection{Training heuristics}
+Training a Transformer model is a challenge, and several heuristics have been proposed\cite{TransformerTips}.  The most useful we used in this work are:
+
+\paragraph{Using as bigger batch size as possible.} However, due to our hardware limitations we could not set the batch size greater then 64\footnote{Our first implementation of the model required a lot of memory to deal with masks of reactants and products. Though later we improved the code we still remained this size for consistency of the results.};
+\paragraph{Iincreasing the learning rate at the beginning} of training up to warmup steps\footnote{In our implementation 1 step is equivalent to 1 batch. The number of reactions for training is 40\,029 + 5\,004, so one epoch is equal to 704 batches.}. The authors of the original Transformer paper \cite{Transformer}  used 4\,000 steps for warming. The Transformer model for reaction prediction task from \cite{SchwallerTransformer} used 8\,000 steps. We have also tried different values for warmup and eventually found that 16\,000 works well with our model.
+\paragraph{Applying cyclic learning rate} schedules. This tips can generally improve any model\cite{Izmailov} through better loss landscape exploration with bigger learning rates after the optimiser felt down to some local minima. For this study we used the following scheme for learning rate calculation depending on the step:
+\[
+    u(step)= 
+\begin{cases}
+    warmup + (step \bmod cycle), & \text{if } step \ge cycle\\
+    step,              & \text{otherwise}
+\end{cases}
+\]
+where $cycle$ stands for the number of steps while the learning rate is decreasing before raising to the maximum again.
+\begin{equation}
+\lambda(step) = factor * { {min (1.0, u(step) / warmup ) } \over { max (u(step), warmup) } }
+\end{equation}	
+where $factor$ is just a constant. Big values of $factor$ introduce numerical instability during training, so after several trials we set $factor = 20.0$. The curve for learning rate in this study is shown in fig. \ref{fig:example}, plot (4, f).
+\paragraph{Averaging weights} during last steps of training or at minima of learning rates.
+
+\subsection{Knowledge distillation}
+After training a (teacher) model it is possible to get predictions for the training set and then train another (student) model on these predictions. This second model usually outperforms the first one. This approach was further developed in\cite{Hinton} where the algorithm for knowledge distillation was proposed. The key idea is to calculate probabilities for training dataset at higher temperature $T$, eq. \ref{eq:t}, and then use this values as targets along with the correct labels. The final loss function:
+\begin{equation}
+Loss = -\sum y log(q) - T^2 * \sum q_{teacher} log(q)  
+\end{equation}
+contains terms for hard and soft labels and, thus, the model will learn to distinguish subtle differences in final probability distribution. We applied this technique for further training our models and found that this simple approach can improve the accuracy up to 2\%.
+
+\section{Results}
+\label{sec:results}
+
+
+
+\begin{figure}
+  \centering
+  \includegraphics[width = 17cm]{images/learning.pdf}
+  \caption{Summary of learning curves for the Transformer model: 1) Accuracy of correctly predicted reactants in test set (a); 2) character based accuracy (b); 3) cross-entropy loss with cycling learning rate (f) for the entire dataset (c) and losses for training (d) and validation (e) sets with monotonically decreasing learning rate (g); 4) learning rate schedules as a function of epoch.}
+  \label{fig:example}
+\end{figure}
+
+\begin{table}
+  \caption{Accuracy (\%) of the models on test set when all reactants were correctly predicted.}
+  \centering
+  \begin{tabular}{p{2cm}p{1.5cm}p{1.5cm}p{1.5cm}p{8cm}}
+    \toprule
+    Model & top-1 & top-3 & top-5 & Description\\
+    \midrule
+    Seq2Seq & 37.4  & 52.4 & 57.0 & Literature result from \cite{Pande} based on Seq2Seq architecture. \\
+    T1     & 38.27 & 58.23 & 64.96 & Transformer Model trained with validation control set (early stopping, 200 epochs). \\
+    T$1_1$ & 40.16 & 58.95 & 65.54 & The same as T1, but without early stopping (1000 epochs). \\ 
+    T2     & & & & Transformer Model trained on both training and validation sets for 1000 epochs.\\
+    T$2_1$ & 40.36 & & & T = 1.3 during the decoding stage of the T2 model. \\
+    T3     &  & & & Transformer Model trained with cyclic learning rate schedule for 6000 epochs.\\
+    T$3_1$ & 42.28  & & & T =  1.3 during the decoding stage of T3 model \\
+    T4     &  42.25  & 61.31 & 68.11 & Transformer Model trained with distillation approach \cite{Hinton} for 1000 epochs.\\ 
+    T$4_1$ & 42.91 & 62.11 & 68.92 & The same as T4 but decoding at T=1.3 \\
+    T$4_1$ & 44.42 & 63.66 & 70.38 & The same as T4 but decoding at T=1.3, rdkit version 2017.09.3\\    \bottomrule
+  \end{tabular}
+  \label{tab:results}
+\end{table}
+
+\section{Discussion}
+
+\begin{figure}
+  \centering
+  \includegraphics[width = 16.5cm]{images/probland.pdf}
+  \caption{Landscapes of probabilities for predicting example reaction, fig. \ref{fig:example}, with  T3 model(left) and T4 (distilled) model (right). }
+  \label{fig:landscape}
+\end{figure}
+
+All source code and also models built are available online via github
+\begin{center}
+  \url{https://github.com/bigchem/retrosynthesis}
+\end{center}
+
+\section*{Acknowledgments}
+This study has been partially supported by ERA-CVD (\url{httpd://era-cvd.eu}) "Cardio-Oncology" project, BMBF 01KL1710.
+The authors thank NVIDIA Corporation for donating Quadro P6000 and Titan Xp graphics cards for this research.
+
+\bibliographystyle{naturemag}  
+\bibliography{references}
+ 
+
+\end{document}

@@ -1,10 +1,19 @@
 # Byte-compiled / optimized / DLL files
+.DS_STORE
 __pycache__/
 *.py[cod]
 *$py.class
 
 # C extensions
 *.so
+
+#Latex
+*.out
+*.log
+*.aux
+*.bbl
+*.blg
+*.sav
 
 # Distribution / packaging
 .Python
