@@ -165,9 +165,9 @@ where $V$ is the size of the vocabulary (66 in this work) and $T$ stands for the
 During the inference however we have several possibilities how to convert $q_i$ into $y_i$, namely greedy and beam search. The first one picks up a symbol with maximum probability whereas the second one at each step holds $top-K$ ($K$ = beam's size) suggestions of the model and summarises the overall likelihood for each of $K$ final decodings. The beam search allows better inference and the probability landscape exploration compared to the greedy search because at a particular step of decoding it may choose a symbol with less than maximum probability, but the total likelihood of the result can be higher due to more significant probabilities on the next steps.
 
 \subsection{Training heuristics}
-Training a Transformer model is a challenge, and several heuristics have been proposed\cite{TransformerTips}.  The most useful we used in this work are:
+Training a Transformer model is a challenge, and several heuristics have been proposed\cite{TransformerTips}, some of them were used in this study:
 
-\paragraph{Using as bigger batch size as possible.} However, due to our hardware limitations we could not set the batch size greater then 64\footnote{Our first implementation of the model required a lot of memory to deal with masks of reactants and products. Though later we improved the code we still remained this size for consistency of the results.};
+\paragraph{Using as bigger batch size as possible.} However, due to our hardware limitations we could not set the batch size more then 64\footnote{Our first implementation of the model required a lot of memory to deal with masks of reactants and products. Though later we improved the code we still remained this size for consistency of the results.};
 \paragraph{Iincreasing the learning rate at the beginning} of training up to warmup steps\footnote{In our implementation 1 step is equivalent to 1 batch. The number of reactions for training is 40\,029 + 5\,004, so one epoch is equal to 704 batches.}. The authors of the original Transformer paper \cite{Transformer}  used 4\,000 steps for warming. The Transformer model for reaction prediction task from \cite{SchwallerTransformer} used 8\,000 steps. We have also tried different values for warmup and eventually found that 16\,000 works well with our model.
 \paragraph{Applying cyclic learning rate} schedules. This tips can generally improve any model\cite{Izmailov} through better loss landscape exploration with bigger learning rates after the optimiser felt down to some local minima. For this study we used the following scheme for learning rate calculation depending on the step:
 \[
@@ -179,14 +179,16 @@ Training a Transformer model is a challenge, and several heuristics have been pr
 \]
 where $cycle$ stands for the number of steps while the learning rate is decreasing before raising to the maximum again.
 \begin{equation}
+\label{eq:rate}
 \lambda(step) = factor * { {min (1.0, u(step) / warmup ) } \over { max (u(step), warmup) } }
 \end{equation}	
 where $factor$ is just a constant. Big values of $factor$ introduce numerical instability during training, so after several trials we set $factor = 20.0$. The curve for learning rate in this study is shown in fig. \ref{fig:example}, plot (4, f).
-\paragraph{Averaging weights} during last steps of training or at minima of learning rates.
+\paragraph{Averaging weights} during last steps (usually 10- 20) of training or at minima of learning rates in case of snapshop learning \cite{Snapshot}.
 
 \subsection{Knowledge distillation}
 After training a (teacher) model it is possible to get predictions for the training set and then train another (student) model on these predictions. This second model usually outperforms the first one. This approach was further developed in\cite{Hinton} where the algorithm for knowledge distillation was proposed. The key idea is to calculate probabilities for training dataset at higher temperature $T$, eq. \ref{eq:t}, and then use this values as targets along with the correct labels. The final loss function:
 \begin{equation}
+\label{eq:hard}
 Loss = -\sum y log(q) - T^2 * \sum q_{teacher} log(q)  
 \end{equation}
 contains terms for hard and soft labels and, thus, the model will learn to distinguish subtle differences in final probability distribution. We applied this technique for further training our models and found that this simple approach can improve the accuracy up to 2\%.
@@ -194,16 +196,8 @@ contains terms for hard and soft labels and, thus, the model will learn to disti
 \section{Results}
 \label{sec:results}
 
-
-
-\begin{figure}
-  \centering
-  \includegraphics[width = 17cm]{images/learning.pdf}
-  \caption{Summary of learning curves for the Transformer model: 1) Accuracy of correctly predicted reactants in test set (a); 2) character based accuracy (b); 3) cross-entropy loss with cycling learning rate (f) for the entire dataset (c) and losses for training (d) and validation (e) sets with monotonically decreasing learning rate (g); 4) learning rate schedules as a function of epoch.}
-  \label{fig:example}
-\end{figure}
-
-\begin{table}
+For this study, we implemented The Transformer model in Tensorflow library to support its integration in our in-house programs set (\url{https://github.com/bigchem/retrosynthesis}).  All values reported are averages for three repetitive runs. Preliminary modeling showed that the architecture with 3 layers and 8 attention works well for the datasets, though we tried combinations of 2, 6, 8, 10 layers with 6, 8, 10, 12 heads. So all calculations were performed with these values fixed.  The number of learnable parameters of the model is 1\,882\,176, embedding layer common for product and reactants has size 64.
+\begin{table}[b!]
   \caption{Accuracy (\%) of the models on test set when all reactants were correctly predicted.}
   \centering
   \begin{tabular}{p{2cm}p{1.5cm}p{1.5cm}p{1.5cm}p{8cm}}
@@ -213,7 +207,7 @@ contains terms for hard and soft labels and, thus, the model will learn to disti
     Seq2Seq & 37.4  & 52.4 & 57.0 & Literature result from \cite{Pande} based on Seq2Seq architecture. \\
     T1     & 38.27 & 58.23 & 64.96 & Transformer Model trained with validation control set (early stopping, 200 epochs). \\
     T$1_1$ & 40.16 & 58.95 & 65.54 & The same as T1, but without early stopping (1000 epochs). \\ 
-    T2     & & & & Transformer Model trained on both training and validation sets for 1000 epochs.\\
+    T2     & 42.30 & 62.29 & 68.95 & Transformer Model trained on both training and validation sets for 1000 epochs.\\
     T$2_1$ & 40.36 & & & T = 1.3 during the decoding stage of the T2 model. \\
     T3     &  & & & Transformer Model trained with cyclic learning rate schedule for 6000 epochs.\\
     T$3_1$ & 42.28  & & & T =  1.3 during the decoding stage of T3 model \\
@@ -221,10 +215,31 @@ contains terms for hard and soft labels and, thus, the model will learn to disti
     T$4_1$ & 42.91 & 62.11 & 68.92 & The same as T4 but decoding at T=1.3 \\
     T$4_1$ & 44.42 & 63.66 & 70.38 & The same as T4 but decoding at T=1.3, rdkit version 2017.09.3\\    \bottomrule
   \end{tabular}
-  \label{tab:results}
+  \label{tbl:results}
 \end{table}
 
+Following the standard machine learning protocol, we trained our first models (T1) using three datasets for training, validation, and external testing (8:1:1) as was done in \cite{Pande}. Learning curves for T1 are depicted in fig. \ref{fig:example}, (d) and (e) for training and validation loss, respectively, (g) shows the original learning rate schedule developed by the authors of the Transformer but with 16\,000 warmup steps. On reaching cross-entropy loss about 0.1 on the validation dataset, it stagnates without noticeable fluctuations as training loss steadily decreases. After warming up phase the learning rate begins fading and eventually after 1\,000 epochs its value reaches $2.8*10^{-5}$ inevitable causing to stop training because of too small updates. 
+
+During the decoding procedure, we explored the influence of the temperature parameter on the final quality of prediction and surprisingly found that inferring at higher temperatures gives better result then at T=1. This observation similarly repeated for all our models. Fig. \ref{fig:temperature} shows the influence of this parameter on the reactants prediction of the part of the training set. Clearly, at T=1.3 the model reaches the maximum of chemically-based accuracy. This fact one can explain that at higher temperatures the landscape of output probabilities of the model is softer letting the beam-search procedure to find more suitable ways during decoding. Of course, the temperature influences only relative distances between peaks, so it does not affect the greedy search method. 
+
+If we apply the early stopping technique, we should select the model around 200 epoch. Effectiveness of such a model marked $T1_1$ in table \ref{tbl:results} resulted in TOP-1 40.16\% on the test set. If we choose the last one model obtained at 1\,000 epoch, then the model $T1_2$ gives us slightly better values. In this case, we did not see any need of the validation dataset and keeping in mind that our model has almost 2 millions of parameters we decided to combine training and validation sets and train our next models on both data, e.g., without validation. The model $T2$ was trained on all data and with the same learning rate schedule as $T1$. The results obtained when applying T2 to the test set are better than for T1 set.
+
+Then we trained our model with cyclic learning rate schedule, eq. \ref{eq:rate}, fig. \ref{ref:example} (f) for better exploration of loss landscape. During training, we also saved the character-based accuracy of the model, fig. (b). This snapshot training regime \cite{Snapshot} produces a set of different weights at each minimum of learning rate. Averaging them is to some extent equivalent to a consensus of models but within one model \cite{Izmailov}. We tried different averaging regimes $T3_{2-3}$ but did not see any remarkable improvements. 
+\begin{figure}[t!]
+  \centering
+  \includegraphics[width = 17cm]{images/learning.pdf}
+  \caption{Summary of learning curves for the Transformer model: 1) Accuracy of correctly predicted reactants in test set (a); 2) character based accuracy (b); 3) cross-entropy loss with cycling learning rate (f) for the entire dataset (c) and losses for training (d) and validation (e) sets with monotonically decreasing learning rate (g); 4) learning rate schedules as a function of epoch.}
+  \label{fig:example}
+\end{figure}
+
+Our T3 model outperforms \cite{Pande} by 3.8\% with beam search and more critical by 3.0\% with the greedy search. The latter one is much faster and consequently more suitable for virtual screening campaigns. To improve the quality of this model, we applied the knowledge distillation approach. First, the soft labels were calculated using T3 model, and, second, we traing T4 model from scratch but with two terms in the objective function: one for hard and one for soft labels, eq. \ref{eq:hard}. 
+
+Our T3 model outperforms \cite{Pande} by 3.8\% with beam search and more critical by 3.0\% with the greedy search. The latter one is much faster and consequently more suitable for virtual screening campaigns. To improve the quality of this model, we applied the knowledge distillation approach. First, the soft labels were calculated using T3 model, and, second, we traing T4 model from scratch but with two terms in the objective function: one for hard and one for soft labels, eq. \ref{eq:hard}. 
+
+
 \section{Discussion}
+
+Some discussion...
 
 \begin{figure}
   \centering
