@@ -260,5 +260,152 @@ The authors thank NVIDIA Corporation for donating Quadro P6000 and Titan Xp grap
 \bibliographystyle{naturemag}  
 \bibliography{references}
  
+ \newpage
+ 
+\section*{Appendix}
+
+In this section we report all characteristics of repetitive runs of all models built in this study. Average values based on this data are summed in table \ref{tbl:results}. For every run we report learning curves with loss functions and learning rate, then model relevant information are collected in a table including greedy search decoding accuracies, beam search accuracies for Top-1, Top-3, and Top-5.
+
+\subsection{T1 model} 
+T1 model was trained for 1000 epochs with training and validation datasets. Warmup steps for the learning rate is 16\,000, then it decreases.
+
+\subsubsection{Model 1 (run-100)}
+  
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width = 16.5cm]{images/t1-1.pdf}
+  \caption{Learning curves and rate schedule for T1 model. Losses for training and validation datasets on the left, usual learning rate schedule on the right.}
+  \label{fig:t11}
+\end{figure}
+
+\begin{table}[h!]
+\caption{Parameters of T11 run.}
+  \centering
+  \begin{tabular}{p{8.2cm}p{1.5cm}p{1.5cm}p{1.5cm}p{1.5cm}}
+    \toprule
+    Parameter & Value & Top-1 & Top-3 & Top-5 \\
+    \midrule
+    Early stopping loss & 0.10864 & & & \\
+    Last training loss & 0.11819 & & & \\
+    Epoch (early stopping) & 208 & & & \\
+    \midrule
+    Greedy search (early stopping, epoch 208) & & 32.83 & &\\
+    Greedy search (last, epoch 1000) & & 34.75 & & \\
+    Greedy (last 10 average, epoch, 991 - 1000) & & 35.57 & & \\
+    \midrule
+    Beam, T = 1.0 (early) & & 35.57 & 54.14 & 59.13 \\
+    Beam, T = 1.3 (early) & & 35.93 & 54.59 & 59.51 \\ 
+    \midrule
+    Beam, T = 1.0 (last) & &  &  &  \\
+    Beam, T = 1.3 (last) & \\ 
+    \midrule
+    Beam, T = 1.0 (last 10 average) & &  &  &  \\
+    Beam, T = 1.3 (last 10 average) & \\ 
+    \bottomrule
+  \end{tabular}
+  \label{tbl:t11}
+
+\end{table} 
+
+\newpage
+ \subsubsection{Model 2 (run-200)}
+ 
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width = 16.5cm]{images/t2-1.pdf}
+  \caption{Learning curves and rate schedule for T2 model. Loss for training on the left, usual learning rate schedule on the right.}
+  \label{fig:t21}
+\end{figure}
+
+\begin{table}[h!]
+\caption{Parameters of T21 run.}
+  \centering
+  \begin{tabular}{p{8.2cm}p{1.5cm}p{1.5cm}p{1.5cm}p{1.5cm}}
+    \toprule
+    Parameter & Value & Top-1 & Top-3 & Top-5 \\
+    \midrule
+    Last training loss & 0.05108 & & & \\
+    \midrule
+    Greedy search (last, epoch 1000) & & 38.85 & & \\
+    Greedy (last 10 average, epoch, 991 - 1000) & &  & & \\
+    \midrule
+    Beam, T = 1.0 (last) & & 40.57 &60.19  & 66.77 \\
+    Beam, T = 1.3 (last) & & 41.17 & 60.65 &  67.28 \\ 
+    \midrule
+    Beam, T = 1.0 (last 10 average) & &  &  &  \\
+    Beam, T = 1.3 (last 10 average) & &  &  &  \\ 
+    \bottomrule
+  \end{tabular}
+  \label{tbl:t11}
+
+\end{table} 
+
+\newpage
+ \subsubsection{Model 2 (run-201)}
+ 
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width = 16.5cm]{images/t2-2.pdf}
+  \caption{Learning curves and rate schedule for T2 model. Loss for training on the left, usual learning rate schedule on the right.}
+  \label{fig:t21}
+\end{figure}
+
+\begin{table}[h!]
+\caption{Parameters of T22 run.}
+  \centering
+  \begin{tabular}{p{8.2cm}p{1.5cm}p{1.5cm}p{1.5cm}p{1.5cm}}
+    \toprule
+    Parameter & Value & Top-1 & Top-3 & Top-5 \\
+    \midrule
+    Last training loss & 0.04943 & & & \\
+    \midrule
+    Greedy search (last, epoch 996) & &  & & \\
+    Greedy (last 10 average, epoch, 991 - 1000) & &  & & \\
+    \midrule
+    Beam, T = 1.0 (last) & &  &  &  \\
+    Beam, T = 1.3 (last) & &  &  &   \\ 
+    \midrule
+    Beam, T = 1.0 (last 10 average) & &  &  &  \\
+    Beam, T = 1.3 (last 10 average) & &  &  &  \\ 
+    \bottomrule
+  \end{tabular}
+  \label{tbl:t11}
+
+\end{table} 
+
+ 
+ \newpage
+ \subsubsection{Model 3 (run-3)}
+ 
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width = 16.5cm]{images/t3-1.pdf}
+  \caption{Learning curves and rate schedule for T3 model. Loss for training on the left, usual learning rate schedule on the right.}
+  \label{fig:t11}
+\end{figure}
+
+\begin{table}[h!]
+\caption{Parameters of T31 run.}
+  \centering
+  \begin{tabular}{p{8.2cm}p{1.5cm}p{1.5cm}p{1.5cm}p{1.5cm}}
+    \toprule
+    Parameter & Value & Top-1 & Top-3 & Top-5 \\
+    \midrule
+    Last training loss & 0.05712 & & & \\
+    \midrule
+    Greedy search (last, epoch 1000) & & 39.19 & & \\
+    Greedy (last 10 average, epoch, 991 - 1000) & & 40.23 & & \\
+    \midrule
+    Beam, T = 1.0 (last) & & 40.97 & 61.23 & 67.79  \\
+    Beam, T = 1.3 (last) & & 41.22 & 62.07 & 67.85 \\ 
+    \midrule
+    Beam, T = 1.0 (last 10 average) & & 41.61 & 62.13 &  68.01 \\
+    Beam, T = 1.3 (last 10 average) & & 42.23 & 62.87 & 68.31 \\ 
+    \bottomrule
+  \end{tabular}
+  \label{tbl:t11}
+
+\end{table} 
+
 
 \end{document}
