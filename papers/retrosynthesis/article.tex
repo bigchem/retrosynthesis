@@ -65,7 +65,7 @@ New chemical compounds drive technological advances in material, agricultural, e
 
 The advent of deep learning\cite{ChenDrugDiscovery} gave a new impulse for virtual modeling and also opened a venue for a promising set of generative methods based on Recurrent Neural Networks\cite{ErtlLSTM}, Variational Autoencoders\cite{DuvenaudVAE}, and Generative Adversarial Networks trained with reinforcement learning\cite{ORGAN,OlivecronaReinforcment}. These techniques are changing the course of QSAR studies from the observation to the invention: from a virtual screening of available compounds to direct synthesis of new candidates. Generative models can produce big sets of promising molecules and impaired with SMILES-based QSAR methods\cite{TetkoCNF} provide a strong foundation for creating highly optimized focussed libraries, but estimation of synthetic availability of these compounds is an open question though several scores based on fragmentation\cite{ErtlSaScore} and machine learning\cite{ColeySCScore} approaches have been developed. 
 To synthesize a molecule, one should have a plan of a multi-step synthesis and also a set of available reactants. 
-Finding an optimal combination of reactants, reactions, and conditions to obtain the compound with good yield, sufficient quality, and quantity is not a trivial task even for experts in organic chemistry. Recent advances in the computer-aided synthesis planning are reviewed in \cite{ColeyReview,EnkvinstReview}. 
+Finding an optimal combination of reactants, reactions, and conditions to obtain the compound with good yield, sufficient quality, and quantity is not a trivial task even for experts in organic chemistry. Recent advances in the computer-aided synthesis planning are reviewed in \cite{ColeyReview,EnkvinstReview,BaskinReview}. 
 
 The retrosynthetic analysis worked out by E.\,J.~Corey \cite{Corey} tries to account for all factors while deriving the synthetic route. It iteratively decomposes the molecule on simpler blocks till all of them become available either by purchase or by synthesis described in the literature. At each step, fig. \ref{fig:example-reaction}, all possible disconnections (rules) with known reactions simplify the target molecule bringing to the scene less complex compounds. Some of them may be already available, while the others undergo the next step of retrosynthesis decomposition. Due to the recursive nature of the procedure, it can deal with thousands of putative compounds so computational retrosynthetic approaches can greatly help chemists in finding the best routes. Managing of the database of such rules is complicated and more critical the models based on it are not ready to accommodate new reactions and will always be outdated. Almost more than 60 years of developing rule-based systems ended with no remarkable success in synthesis planning programs. Another approach to tackle the problem is to use so-called template-free methods inspired by the success of machine-translation. They don't require the database of templates and rules due to an inherent possibility to derive this information during training directly from a database of organic reactions with clearly designated roles of reactants, products, reagents, and conditions.
 
@@ -553,12 +553,12 @@ In this section we report all characteristics of repetitive runs of all models b
     Beam, T = 1.3 & & 42.84 & 63.62 & 70.06 \\ \midrule
     \multicolumn{5}{l}{Averaging 8-9-10} \\ \midrule
     Greedy search  & & 41.04 & & \\
-    Beam, T = 1.0  & &  &  &   \\
-    Beam, T = 1.3 & &  &  &  \\ \midrule
+    Beam, T = 1.0  & & 42. 51 & 63.18  &  69.84  \\
+    Beam, T = 1.3 & & 43.19 & 63.93 & 70.50 \\ \midrule
     \multicolumn{5}{l}{Averaging 9-10} \\ \midrule
-    Greedy search  & &  & & \\
-    Beam, T = 1.0  & &  &  &   \\
-    Beam, T = 1.3 & &  &  &  \\ 
+    Greedy search  & & 41.06  & & \\
+    Beam, T = 1.0  & & 42.66 & 63.09 & 69.20  \\
+    Beam, T = 1.3 & & 43.22 & 63.71 &  69.94\\ 
     \bottomrule
   \end{tabular}
   \label{tbl:t31}
