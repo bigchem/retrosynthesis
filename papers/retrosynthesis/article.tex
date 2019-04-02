@@ -17,8 +17,8 @@
 \usepackage{eqnarray,amsmath}
 \usepackage{wrapfig}
 
-\title{There and back again: a retrosynthesis tale}
-\date{April 1, 2019}	
+\title{A Transformer Model for Retrosynthesis}
+\date{April 5, 2019}	
 
 \author{
   Pavel Karpov\thanks{Helmholtz Zentrum M{\"u}nchen -- Research Center for Environmental Health (GmbH), Institute of Structural Biology, Ingolst{\"a}dter Landstra{\ss}e 1, D-85764 Neuherberg, Germany, \url{https://www.helmholtz-muenchen.de/stb/index.html}}\\
@@ -45,14 +45,14 @@
 
 \begin{abstract}
 We describe a Transformer model for a retrosynthetic reaction prediction task. 
-The model is trained end-to-end on 45033 experimental reaction examples extracted 
+The model is trained end-to-end on 45\,033 experimental reaction examples extracted 
 from USA patents. Our final model can successfully predict the reactants set for 
-44.2\% of cases on the external test set. During the training procedure, we applied 
-different learning rate schedules and knowledge distillation. These techniques can prevent 
+42.7\% of cases on the external test set. During the training procedure, we applied 
+different learning rate schedules and snapshot learning. These techniques can prevent 
 overfitting and thus can be a reason to get rid of internal validation dataset that 
 is advantageous for deep models with millions of parameters. We investigate 
 the influence of the temperature while decoding the model output probabilities and find 
-that at T=1.3 the final model behaves like a consensus of models and improve accuracy up to 6\%. 
+that at T=1.3 the final model can improve the accuracy up to 1-2\%. 
 We also discuss the synergy of applying together the retrosynthetic model to predict 
 reagents and a direct reaction model trained on the same data which makes a prognosis 
 for the product base on reactants.
@@ -97,16 +97,14 @@ accuracy on the test set was moderate 37.4\% but still comparable to rule-based 
 We questioned about the possibility of improvement models for one-step retrosynthesis utilizing modern neural network architectures 
 and training techniques. Applying the Transformer Model\cite{Transformer}, 
 together with cyclical learning rate schedule\cite{TransformerTips}, 
-and knowledge distillation\cite{Hinton} resulted in a single model with accuracy 44.2\%, 
-that is more than 6\% higher compare to the baseline model\cite{Pande}.  
+resulted in a single model with accuracy 42.7\%, 
+that is more than 5\% higher compare to the baseline model\cite{Pande}.  
 
 Our main contributions are:
 \begin{itemize}
 \item We show that for this particular task there is no need to use a vliadation dataset for early-stopping or other parameters optimization. We trained all the parameters directly from the training dataset.
-\item Applying weights averaging, snapshot learning and knowledge distillation helped us to train the most precise model for one-step retrosynthesis prediction.
-\item We show that different chemistry-relevant SMILES tokenization approaches cannot improve the accuracy of the models compared to the simplest letter based schema. 
-\item Increasing the temperature while performing a beam-search procedure improves the accuracy up to 4\%. Almost the same effect as consensus does. 
-\item Using both retrosynthetic model for reactant prediction and a direct model trained on the same data for reaction outcome prognosis allows improving precision of the retrosynthesis model.
+\item Applying weights averaging and snapshot learning helped to train the most precise model for one-step retrosynthesis prediction. We averaged weights on 5 successive cycles of learning rate schedule.
+\item Increasing the temperature while performing a beam-search procedure improves the accuracy up to 2\%. 
 \end{itemize}
 
 \section{Approach}
@@ -183,28 +181,20 @@ where $cycle$ stands for the number of steps while the learning rate is decreasi
 \label{eq:rate}
 \lambda(step) = factor * { {min (1.0, u(step) / warmup ) } \over { max (u(step), warmup) } }
 \end{equation}	
-where $factor$ is just a constant. Big values of $factor$ introduce numerical instability during training, so after several trials we set $factor = 20.0$. The curve for learning rate in this study is shown in fig. \ref{fig:example}, plot (4, f).
-\paragraph{Averaging weights} during last steps (usually 10- 20) of training or at minima of learning rates in case of snapshop learning \cite{Snapshot}.
-
-\subsection{Knowledge distillation}
-After training a (teacher) model it is possible to get predictions for the training set and then train another (student) model on these predictions. This second model usually outperforms the first one. This approach was further developed in\cite{Hinton} where the algorithm for knowledge distillation was proposed. The key idea is to calculate probabilities for training dataset at higher temperature $T$, eq. \ref{eq:tempdep}, and then use this values as targets along with the correct labels. The final loss function:
-\begin{equation}
-\label{eq:hard}
-Loss = -\sum y log(q) - T^2 * \sum q_{teacher} log(q)  
-\end{equation}
-contains terms for hard and soft labels and, thus, the model will learn to distinguish subtle differences in final probability distribution. We applied this technique for further training our models and found that this simple approach can improve the accuracy up to 2\%.
+where $factor$ is just a constant. Big values of $factor$ introduce numerical instability during training, so after several trials we set $factor = 20.0$. The curve for learning rate in this study is shown in fig. \ref{fig:example}, plot (4, f). 
+\paragraph{Averaging weights} during last steps (usually 10- 20) of training or at minima of learning rates in case of snapshop learning \cite{Snapshot}. Also with cyclic learning rate schedules it is possible to average weights of those models that have minimum in losses just before increasing of the rate. Such approach leads to more stable and plain region in loss landscapes \cite{Izmailov}. 
 
 \section{Results}
 \label{sec:results}
 
-\begin{wrapfigure}{r}{7cm}  
-  \vspace{-0.5cm}
-  \includegraphics[width = 7cm]{images/tempdep.pdf}
+\begin{wrapfigure}{r}{8cm}  
+  \vspace{-0.2cm}
+  \includegraphics[width = 8cm]{images/tempdep.pdf}
   \caption{Dependence of the beam search on temperature. For better exploration, higher temperatures are more useful. In this study we explored T=1.3. Bigger values significantly worse for Top-3, and approximately the same for Top-1 and Top-5. This curve was derived from the training dataset.}
   \label{fig:tempdep}
-  \vspace{-0.2cm}
+  \vspace{-0.5cm}
 \end{wrapfigure}
-For this study, we implemented The Transformer model in Tensorflow library to support its integration in our in-house programs set (\url{https://github.com/bigchem/retrosynthesis}).  All values reported are averages for three repetitive runs. Preliminary modeling showed that the architecture with 3 layers and 8 attention heads works well for the datasets, though we tried combinations of 2, 3, 4, 5 layers with 6, 8, 10, 12 heads. So all calculations were performed with these values fixed.  The number of learnable parameters of the model is 1\,882\,176, embedding layer common for product and reactants has size 64.
+For this study, we implemented The Transformer model in Tensorflow \cite{tensorflow} library to support its integration in our in-house programs set (\url{https://github.com/bigchem/retrosynthesis}).  All values reported are averages for three repetitive runs, see p. \pageref{sec:appendix} for details. Preliminary modeling showed that the architecture with 3 layers and 8 attention heads works well for the datasets, though we tried combinations of 2, 3, 4, 5 layers with 6, 8, 10, 12 heads. So all calculations were performed with these values fixed.  The number of learnable parameters of the model is 1\,882\,176, embedding layer common for product and reactants has size 64.
 \begin{table}[b!]
   \caption{Accuracy (\%) of the models on test set when all reactants were correctly predicted.}
   \centering
@@ -216,33 +206,29 @@ For this study, we implemented The Transformer model in Tensorflow library to su
     T1         & 34.4 & 37.9 & 57.3 & 62.7 & Transformer Model trained with validation control set (early stopping, \textasciitilde 200 epochs). \\
     T$1_1$ & 37.3 & 39.8 & 59.1 & 63.9 & The same as T1, but without early stopping (1000 epochs). \\ 
     T2         & 39.3 & 41.8 & 61.3 & 67.2 & Transformer Model trained on both training and validation sets for 1000 epochs.\\
-    T3         & 40.6 & 42.7 & 63.9 & 69.8 & Transformer Model trained with cyclic learning rate schedule for 1000 epochs. Averaging cycles 6,7,8,10.\\
-    T4         & &  &  &  & Transformer Model trained with distillation approach \cite{Hinton} for 1000 epochs.\\ 
+    \textbf{T3}         & \textbf{40.6} & \textbf{42.7} & \textbf{63.9} & \textbf{69.8} & Transformer Model trained with cyclic learning rate schedule for 1000 epochs. Averaging cycles 6,7,8,9, and 10.\\
     \bottomrule
   \end{tabular}
   \label{tbl:results}
 \end{table}
 
-Following the standard machine learning protocol, we trained our first models (T1) using three datasets for training, validation, and external testing (8:1:1) as was done in \cite{Pande}. Learning curves for T1 are depicted in fig. \ref{fig:example}, (d) and (e) for training and validation loss, respectively, (g) shows the original learning rate schedule developed by the authors of the Transformer but with 16\,000 warmup steps. On reaching cross-entropy loss about 0.1 on the validation dataset, it stagnates without noticeable fluctuations as training loss steadily decreases. After warming up phase the learning rate begins fading and eventually after 1\,000 epochs its value reaches $2.8*10^{-5}$ inevitable causing to stop training because of too small updates. 
+Following the standard machine learning protocol, we trained our first models (T1) using three datasets for training, validation, and external testing (8:1:1) as was done in \cite{Pande}. Learning curves for T1 are depicted in fig. \ref{fig:example}, (c) and (d) for training and validation loss, respectively, (a) shows the original learning rate schedule developed by the authors of the Transformer but with 16\,000 warmup steps. On reaching cross-entropy loss about 0.1 on the validation dataset, it stagnates without noticeable fluctuations as training loss steadily decreases. After warming up phase the learning rate begins fading and eventually after 1\,000 epochs its value reaches $2.8*10^{-5}$ inevitable causing to stop training because of too small updates. 
 
-During the decoding procedure, we explored the influence of the temperature parameter on the final quality of prediction and surprisingly found that inferring at higher temperatures gives better result then at T=1. This observation similarly repeated for all our models. Fig. \ref{fig:tempdep} shows the influence of this parameter on the reactants prediction of the part of the training set. Clearly, at T=1.3 the model reaches the maximum of chemically-based accuracy. This fact one can explain that at higher temperatures the landscape of output probabilities of the model is softer letting the beam-search procedure to find more suitable ways during decoding. Of course, the temperature influences only relative distances between peaks, so it does not affect the greedy search method. 
+During the decoding procedure, we explored the influence of the temperature parameter on the final quality of prediction and found that inferring at higher temperatures gives better result then at T=1. This observation similarly repeated for all our models. Fig. \ref{fig:tempdep} shows the influence of this parameter on the reactants prediction of the part of the training set. Clearly, at T=1.3 the model reaches the maximum of chemically-based accuracy. This fact one can explain that at higher temperatures the landscape of output probabilities of the model is softer letting the beam-search procedure to find more suitable ways during decoding. Of course, the temperature influences only relative distances between peaks, so it does not affect the greedy search method. 
 
-If we apply the early stopping technique, we should select the model around 200 epoch. Effectiveness of such a model marked $T1_1$ in table \ref{tbl:results} resulted in TOP-1 40.16\% on the test set. If we choose the last one model obtained at 1\,000 epoch, then the model $T1_2$ gives us slightly better values. In this case, we did not see any need of the validation dataset and keeping in mind that our model has almost 2 millions of parameters we decided to combine training and validation sets and train our next models on both data, e.g., without validation. The model $T2$ was trained on all data and with the same learning rate schedule as $T1$. The results obtained when applying T2 to the test set are better than for T1 set.
+If we apply the early stopping technique, we should select the model around 200 epoch. Effectiveness of such a model marked $T1_1$ in table \ref{tbl:results} resulted in TOP-1 37.9\% on the test set. If we choose the last one model obtained at 1\,000 epoch, then the model $T1_2$ gives us better values -- 39.8\%. In this case, we did not see any need of the validation dataset and keeping in mind that our model has almost 2 millions of parameters we decided to combine training and validation sets and train our next models on both data, e.g., without validation. The model $T2$ was trained on all data and with the same learning rate schedule as $T1$. The results obtained when applying T2 to the test set are better than for T1 set namely 41.8\% against 39.8\%.
 
-Then we trained our model with cyclic learning rate schedule, eq. \ref{eq:rate}, fig. \ref{fig:example} (f) for better exploration of loss landscape. During training, we also saved the character-based accuracy of the model, fig. (b). This snapshot training regime \cite{Snapshot} produces a set of different weights at each minimum of learning rate. Averaging them is to some extent equivalent to a consensus of models but within one model \cite{Izmailov}. We tried different averaging regimes $T3_{2-3}$ but did not see any remarkable improvements. 
+Then we trained our model with cyclic learning rate schedule, eq. \ref{eq:rate}, fig. \ref{fig:example} (b) for better exploration of loss landscape. During training, we also saved the character-based accuracy of the model, fig. \ref{fig:example}, (f). This snapshot training regime \cite{Snapshot} produces a set of different weights at each minimum of learning rate. Averaging them is to some extent equivalent to a consensus of models but within one model \cite{Izmailov}. We tried different averaging regimes T3 and found that averaging on 6-7-8-9-10 cycles gives better  results. 
 \begin{figure}[t!]
   \centering
-  \includegraphics[width = 17cm]{images/learning.pdf}
-  \caption{Summary of learning curves for the Transformer model: 1) Accuracy of correctly predicted reactants in test set (a); 2) character based accuracy (b); 3) cross-entropy loss with cycling learning rate (f) for the entire dataset (c) and losses for training (d) and validation (e) sets with monotonically decreasing learning rate (g); 4) learning rate schedules as a function of epoch.}
+  \includegraphics[width = 16cm]{images/learning.pdf}
+  \caption{Summary of learning curves for the Transformer model: a) original learning rate schedule with warmup; b) cyclic learning rate with warmup; c) cross-entropy loss  for training and d) validation;  e) cross-entropy loss and f) character-based accuracy for training a model wit cyclic learning schedule.}
   \label{fig:example}
 \end{figure}
 
-Our T3 model outperforms \cite{Pande} by 3.8\% with beam search and more critical by 3.0\% with the greedy search. The latter one is much faster and consequently more suitable for virtual screening campaigns. To improve the quality of this model, we applied the knowledge distillation approach. First, the soft labels were calculated using T3 model, and, second, we traing T4 model from scratch but with two terms in the objective function: one for hard and one for soft labels, eq. \ref{eq:hard}. 
-
+Our final T3 model outperforms \cite{Pande} by 5.3\% with beam search and more critical it is also effective with greedy search 40.6\%. The latter one is much faster and consequently more suitable for virtual screening campaigns. 
 
 \section{Discussion}
-
-Some discussion...
 
 \begin{figure}
   \centering
@@ -251,7 +237,13 @@ Some discussion...
   \label{fig:landscape}
 \end{figure}
 
-Much attention paid in the scientific literature for rule-based approaches []. Since the authors of [] have described the algorithm of automatic rule extraction from mapped reaction database several implementations of the procedure appeared, and then widely accepted by researchers. However, it should be noticed that, first, there is no algorithm to make atom-mapping  [] if it is absent (the typical situation with laboratory notebooks (ELN) for example). Second, all available information on synthesis usually contains only positive reactions, so all binary classification accuracies are inevitable overestimated because of artificial negative sets exploited in studies. Finally, the absence of commonly accepted dataset for testing makes the results of different groups practically disparate and probably biased to those problems the authors tried to solve. The authors of [] selected 40 molecules from DrugBank [] to test their multiscale models, whereas [] used database specially prepared for classification [].  First work on applying reinforcement learning for the whole retrosynthetic path [] showed superior performance compared to the rule-based methods developed before mainly because the approach can deal with several steps of synthesis. But the policy learned during the training again used extracted rules limiting the method. Thus, the development of models for direct estimation of reactants is still of prime importance. Embedding such systems in policy networks within reinforcement learning paradigm can bring forward an entirely data-driven approach to solve challenging organic synthesis problems.
+Much attention paid in the scientific literature for rule-based approaches \cite{Preuss,Baylon}. Since the authors of \cite{Rules} have described the algorithm of automatic rule extraction from mapped reaction database several implementations of the procedure appeared, and then widely accepted by researchers. However, it should be noticed that, first, there is no algorithm to make atom-mapping \cite{BaskinReview} if it is absent (the typical situation with laboratory notebooks (ELN) for example). Second, all available information on synthesis usually contains only positive reactions, so all binary classification accuracies are inevitable overestimated because of artificial negative sets exploited in studies. Finally, the absence of commonly accepted dataset for testing makes the results of different groups practically disparate and  biased to those problems the authors tried to solve. The authors of \cite{Baylon} selected 40 molecules from DrugBank database to test their multiscale models, whereas \cite{Pande} used database specially prepared for classification \cite{Schneider}.  
+
+First work on applying reinforcement learning for the whole retrosynthetic path \cite{Preuss} showed superior performance compared to the rule-based methods developed before. More important if can deal with several steps of synthesis. But the policy learned during the training again used extracted rules limiting the method. Thus, the development of models for direct estimation of reactants is still of prime importance. Embedding such systems in policy networks within reinforcement learning paradigm can bring forward an entirely data-driven approach to solve challenging organic synthesis problems.
+
+\section{Conclusions}
+
+We have described a Transformer model for retrosynthesis one-step prediction task. Our final model trained with cyclic learning rate schedule and its weights were averaged during last five loss minimum. The model outperforms the previous published retrosynthetic character-based model by 5.3\%. It also does not require the extraction of specific rules, atom mappings, and reaction types in reaction dataset. We believe it is possible to improve the model further applying knowledge distillation method \cite{Hinton} for example. The current model can be used as a building block for reinforcement learning aimed at solving complex organic problems.
 
 All source code and also models built are available online via github
 \begin{center}
@@ -268,6 +260,7 @@ The authors thank NVIDIA Corporation for donating Quadro P6000 and Titan Xp grap
  \newpage
  
 \section{Appendix}
+\label{sec:appendix}
 
 In this section we report all characteristics of repetitive runs of all models built in this study. Average values based on this data are summed in table \ref{tbl:results}. For every run we report learning curves with loss functions and learning rate, then model relevant information are collected in a table including greedy search decoding accuracies, beam search accuracies for Top-1, Top-3, and Top-5.
 
