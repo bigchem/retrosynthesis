@@ -237,12 +237,13 @@ The beam search calculates the sum of negative logarithms of probabilities of se
   \includegraphics[width = 7cm]{images/auc.pdf}
   \caption{Internal classification performance.}
   \label{fig:auc}
-  \vspace{-1.7cm}
+  \vspace{-1.5cm}
 \end{wrapfigure}
  explanation is that the estimation does not deal with organic chemistry. The model tries to derive some character-based scoring relying only on tokens in a string and increasing this value does not influence the quality of prognosis. The same effect we saw during training when the character accuracy is 98\% whereas chemistry-based metric is much lower. 
  
  
-Estimation of optimal thresholds on training sets almost always a bad idea due to the biasing of a model to its source data. The correct way is to use validation dataset instead. We built the classifier for the T1-2 with characteristics: AUC = 0.65, optimal threshold 0.00396, and applied it for testing the model. The results were again worse, 13.5\% vs. 40.85\%. There are no significant differencies of accuracies when using unnormalized or normalized on the length of the reactants string scores. Fig. \ref{fig:auc} shows ROC curves for T1-2 and T3-2 models derived at T=1.3. Evidently one cannot 
+Estimation of optimal thresholds on training sets almost always a bad idea due to the biasing of a model to its source data. The correct way is to use validation dataset instead. We built the classifier for the T1-2 with characteristics: AUC = 0.65, optimal threshold 0.00396, and applied it for testing the model. The results were again worse, 14.1\% vs. 40.85\%. There are no significant differencies of accuracies when using unnormalized or normalized on the length of the reactants string scores. Fig. \ref{fig:auc} shows ROC curves for T1-2 and T3-2 models derived at T=1.3. 
+Evidently one cannot use this estimation to improve TOP-1 scoring.
 
 \subsection{Forward reaction prediction scoring}
 
