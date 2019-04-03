@@ -63,7 +63,7 @@ for the product base on reactants.
 \section{Introduction}
 New chemical compounds drive technological advances in material, agricultural, environmental, and medical sciences, thus, embracing all fields of scientific activities which have been bringing social and economic benefits throughout human history. Design of chemicals with predefined properties is an arena of QSAR/QSPR (Quantitative Structure Activity/Property Relationships) approaches aimed at finding correlations between molecular structures and their desired outcomes and then applying these models to optimise activity/property of compounds. 
 
-The advent of deep learning\cite{ChenDrugDiscovery} gave a new impulse for virtual modeling and also opened a venue for a promising set of generative methods based on Recurrent Neural Networks\cite{ErtlLSTM}, Variational Autoencoders\cite{DuvenaudVAE}, and Generative Adversarial Networks trained with reinforcement learning\cite{ORGAN,OlivecronaReinforcment}. These techniques are changing the course of QSAR studies from the observation to the invention: from a virtual screening of available compounds to direct synthesis of new candidates. Generative models can produce big sets of promising molecules and impaired with SMILES-based QSAR methods\cite{TetkoCNF} provide a strong foundation for creating highly optimized focussed libraries, but estimation of synthetic availability of these compounds is an open question though several scores based on fragmentation\cite{ErtlSaScore} and machine learning\cite{ColeySCScore} approaches have been developed. 
+The advent of deep learning \cite{ChenDrugDiscovery} gave a new impulse for virtual modeling and also opened a venue for a promising set of generative methods based on Recurrent Neural Networks \cite{ErtlLSTM}, Variational Autoencoders \cite{DuvenaudVAE}, and Generative Adversarial Networks trained with reinforcement learning \cite{ORGAN,OlivecronaReinforcment}. These techniques are changing the course of QSAR studies from the observation to the invention: from a virtual screening of available compounds to direct synthesis of new candidates. Generative models can produce big sets of promising molecules and impaired with SMILES-based QSAR methods \cite{TetkoCNF} provide a strong foundation for creating highly optimized focussed libraries, but estimation of synthetic availability of these compounds is an open question though several scores based on fragmentation \cite{ErtlSaScore} and machine learning \cite{ColeySCScore} approaches have been developed. 
 To synthesize a molecule, one should have a plan of a multi-step synthesis and also a set of available reactants. 
 Finding an optimal combination of reactants, reactions, and conditions to obtain the compound with good yield, sufficient quality, and quantity is not a trivial task even for experts in organic chemistry. Recent advances in the computer-aided synthesis planning are reviewed in \cite{ColeyReview,EnkvinstReview,BaskinReview}. 
 
@@ -88,21 +88,21 @@ correctly predict the set of reactants. Namely, it should predict Nc1cccnc1N.COC
 Neural sequence-to-sequence (seq2seq) approach has been recently applied for a direct reaction 
 prediction task \cite{SchwallerTranslation,SchwallerTransformer} with outstanding statistical 
 parameters of final models -- 90.4\% of accuracy on test set. Seq2seq modeling has been also tested on 
-retrosynthesis task\cite{Pande}, but due to the complex nature of retrosynthesis itself 
+retrosynthesis task \cite{Pande}, but due to the complex nature of retrosynthesis itself 
 and difficulty in estimating the correct predictions of reactants
 \footnote{A target molecule usually can be synthesized with different reactions starting from different sets of reactants. 
 The predictions of the model may be correct from organic chemist point of view but differ from 
 the reactant set in ground truth. This may lead to underestimation of effectiveness of models.}, 
 accuracy on the test set was moderate 37.4\% but still comparable to rule-based systems 35.4\%. 
 We questioned about the possibility of improvement models for one-step retrosynthesis utilizing modern neural network architectures 
-and training techniques. Applying the Transformer Model\cite{Transformer}, 
-together with cyclical learning rate schedule\cite{TransformerTips}, 
+and training techniques. Applying the Transformer Model \cite{Transformer}, 
+together with cyclical learning rate schedule \cite{TransformerTips}, 
 resulted in a single model with accuracy 42.7\%, 
-that is more than 5\% higher compare to the baseline model\cite{Pande}.  
+that is more than 5\% higher compare to the baseline model \cite{Pande}.  
 
 Our main contributions are:
 \begin{itemize}
-\item We show that for this particular task there is no need to use a vliadation dataset for early-stopping or other parameters optimization. We trained all the parameters directly from the training dataset.
+\item We show that for this particular task there is no need to use a validation dataset for early-stopping or other parameters optimization. We trained all the parameters directly from the training dataset.
 \item Applying weights averaging and snapshot learning helped to train the most precise model for one-step retrosynthesis prediction. We averaged weights on 5 successive cycles of learning rate schedule.
 \item Increasing the temperature while performing a beam-search procedure improves the accuracy up to 2\%. 
 \end{itemize}
@@ -113,8 +113,8 @@ Our main contributions are:
 \subsection{Dataset}
 
 In this study we used the same dataset of reactions as in \cite{Pande}. 
-This dataset was filtered from the USPTO database\cite{Lowe} originally derived from the USA patents and 
-contains 50\,000 reactions classified into 10 reaction types\cite{Schneider}. The authors\cite{Pande} further preprocessed the database by 
+This dataset was filtered from the USPTO database \cite{Lowe} originally derived from the USA patents and 
+contains 50\,000 reactions classified into 10 reaction types \cite{Schneider}. The authors \cite{Pande} further preprocessed the database by 
 splitting multiple products reactions into multiple single products reactions. The resulting dataset contains 40\,029, 5\,004, and 5\,004 reactions for training, validation, and testing respectively. Information about the reaction type 
 was discarded as we aimed at building a general model using SMILES of products and reactants only.
 
@@ -164,11 +164,11 @@ where $V$ is the size of the vocabulary (66 in this work) and $T$ stands for the
 During the inference however we have several possibilities how to convert $q_i$ into $y_i$, namely greedy and beam search. The first one picks up a symbol with maximum probability whereas the second one at each step holds $top-K$ ($K$ = beam's size) suggestions of the model and summarises the overall likelihood for each of $K$ final decodings. The beam search allows better inference and the probability landscape exploration compared to the greedy search because at a particular step of decoding it may choose a symbol with less than maximum probability, but the total likelihood of the result can be higher due to more significant probabilities on the next steps.
 
 \subsection{Training heuristics}
-Training a Transformer model is a challenge, and several heuristics have been proposed\cite{TransformerTips}, some of them were used in this study:
+Training a Transformer model is a challenge, and several heuristics have been proposed \cite{TransformerTips}, some of them were used in this study:
 
 \paragraph{Using as bigger batch size as possible.} However, due to our hardware limitations we could not set the batch size more then 64\footnote{Our first implementation of the model required a lot of memory to deal with masks of reactants and products. Though later we improved the code we still remained this size for consistency of the results.};
 \paragraph{Iincreasing the learning rate at the beginning} of training up to warmup steps\footnote{In our implementation 1 step is equivalent to 1 batch. The number of reactions for training is 40\,029 + 5\,004, so one epoch is equal to 704 batches.}. The authors of the original Transformer paper \cite{Transformer}  used 4\,000 steps for warming. The Transformer model for reaction prediction task from \cite{SchwallerTransformer} used 8\,000 steps. We have also tried different values for warmup and eventually found that 16\,000 works well with our model.
-\paragraph{Applying cyclic learning rate} schedules. This tips can generally improve any model\cite{Izmailov} through better loss landscape exploration with bigger learning rates after the optimiser felt down to some local minima. For this study we used the following scheme for learning rate calculation depending on the step:
+\paragraph{Applying cyclic learning rate} schedules. This tips can generally improve any model \cite{Izmailov} through better loss landscape exploration with bigger learning rates after the optimiser felt down to some local minima. For this study we used the following scheme for learning rate calculation depending on the step:
 \[
     u(step)= 
 \begin{cases}
@@ -186,9 +186,9 @@ where $factor$ is just a constant. Big values of $factor$ introduce numerical in
 
 \section{Results}
 \label{sec:results}
-
+\subsection {Learning details and evaluation of models for retrosynthesis prediction} 
 \begin{wrapfigure}{r}{8cm}  
-  \vspace{-0.2cm}
+  \vspace{-0.5cm}
   \includegraphics[width = 8cm]{images/tempdep.pdf}
   \caption{Dependence of the beam search on temperature. For better exploration, higher temperatures are more useful. In this study we explored T=1.3. Bigger values significantly worse for Top-3, and approximately the same for Top-1 and Top-5. This curve was derived from the training dataset.}
   \label{fig:tempdep}
@@ -218,7 +218,7 @@ During the decoding procedure, we explored the influence of the temperature para
 
 If we apply the early stopping technique, we should select the model around 200 epoch. Effectiveness of such a model marked $T1_1$ in table \ref{tbl:results} resulted in TOP-1 37.9\% on the test set. If we choose the last one model obtained at 1\,000 epoch, then the model $T1_2$ gives us better values -- 39.8\%. In this case, we did not see any need of the validation dataset and keeping in mind that our model has almost 2 millions of parameters we decided to combine training and validation sets and train our next models on both data, e.g., without validation. The model $T2$ was trained on all data and with the same learning rate schedule as $T1$. The results obtained when applying T2 to the test set are better than for T1 set namely 41.8\% against 39.8\%.
 
-Then we trained our model with cyclic learning rate schedule, eq. \ref{eq:rate}, fig. \ref{fig:example} (b) for better exploration of loss landscape. During training, we also saved the character-based accuracy of the model, fig. \ref{fig:example}, (f). This snapshot training regime \cite{Snapshot} produces a set of different weights at each minimum of learning rate. Averaging them is to some extent equivalent to a consensus of models but within one model \cite{Izmailov}. We tried different averaging regimes T3 and found that averaging on 6-7-8-9-10 cycles gives better  results. 
+Then we trained our model with cyclic learning rate schedule, eq. \ref{eq:rate}, fig. \ref{fig:example} (b) for better exploration of loss landscape. During training, we also saved the character-based accuracy of the model, fig. \ref{fig:example}, (f). This snapshot training regime \cite{Snapshot} produces a set of different weights at each minimum of learning rate. Averaging them is to some extent equivalent to a consensus of models but within one model \cite{Izmailov}. We tried different averaging regimes for T3 and found that averaging on 6-7-8-9-10 cycles gives better  results. 
 \begin{figure}[t!]
   \centering
   \includegraphics[width = 16cm]{images/learning.pdf}
@@ -232,14 +232,13 @@ It worth to notice that TOP-5 accuracy reaches almost 70\%. That means the model
 
 \subsection{Internal scoring}
 
-The beam search calculates the sum of negative logarithms of probabilities of selecting a token at a particular step, and thus, this value can be a measure of internal confidence. To check this hypothesis, we selected T3-2 model and estimated its internal performance to distinguish between correct and invalid predictions.  The parameters of the classifier were: AUC = 0.77, optimal threshold = 0.00678. Then we validated the model with an additional condition: if the score is less than optimal threshold we selected the answer, otherwise we went to the next candidate in the possible reactant sets returned by the beam search. The results were even worse than without thresholds, 28.45 vs. 42.42.   A possible\begin{wrapfigure}{r}{7cm}  
+The beam search calculates the sum of negative logarithms of probabilities of selecting a token at a particular step, and thus, this value can be a measure of internal confidence. To check this hypothesis, we selected T3-2 model and estimated its internal performance to distinguish between correct and invalid predictions.  The \begin{wrapfigure}{r}{7cm}  
   \vspace{-0.2cm}
   \includegraphics[width = 7cm]{images/auc.pdf}
   \caption{Internal classification performance.}
   \label{fig:auc}
-  \vspace{-1.5cm}
-\end{wrapfigure}
- explanation is that the estimation does not deal with organic chemistry. The model tries to derive some character-based scoring relying only on tokens in a string and increasing this value does not influence the quality of prognosis. The same effect we saw during training when the character accuracy is 98\% whereas chemistry-based metric is much lower. 
+  \vspace{-0.2cm}
+\end{wrapfigure}parameters of the classifier were: AUC = 0.77, optimal threshold = 0.00678. Then we validated the model with an additional condition: if the score is less than optimal threshold we selected the answer, otherwise  we went to the next candidate in the possible reactant sets returned by the beam search. The results were even worse than without thresholds, 28.45 vs. 42.42.   A possible explanation is that the estimation does not deal with organic chemistry. The model tries to derive some character-based scoring relying only on tokens in a string and increasing this value does not influence the quality of prognosis. The same effect we saw during training when the character accuracy is 98\% whereas chemistry-based metric is much lower. 
  
  
 Estimation of optimal thresholds on training sets almost always a bad idea due to the biasing of a model to its source data. The correct way is to use validation dataset instead. We built the classifier for the T1-2 with characteristics: AUC = 0.65, optimal threshold 0.00396, and applied it for testing the model. The results were again worse, 14.1\% vs. 40.85\%. There are no significant differencies of accuracies when using unnormalized or normalized on the length of the reactants string scores. Fig. \ref{fig:auc} shows ROC curves for T1-2 and T3-2 models derived at T=1.3. 
@@ -268,7 +267,7 @@ This schema strongly depends on the quality of the forward model.
 
 \section{Discussion}
 
-Much attention paid in the scientific literature for rule-based approaches \cite{Preuss,Baylon}. Since the authors of \cite{Rules} have described the algorithm of automatic rule extraction from mapped reaction database several implementations of the procedure appeared, and then widely accepted by researchers. However, it should be noticed that, first, there is no algorithm to make atom-mapping \cite{BaskinReview} if it is absent (the typical situation with laboratory notebooks (ELN) for example). Second, all available information on synthesis usually contains only positive reactions, so all binary classification accuracies are inevitable overestimated because of artificial negative sets exploited in studies. Finally, the absence of commonly accepted dataset for testing makes the results of different groups practically disparate and  biased to those problems the authors tried to solve. The authors of \cite{Baylon} selected 40 molecules from DrugBank database to test their multiscale models, whereas \cite{Pande} used database specially prepared for classification \cite{Schneider}.  
+Much attention paid in the scientific literature for rule-based approaches \cite{Preuss,Baylon}. Since the authors of \cite{Rules} have described the algorithm of automatic rule extraction from mapped reaction database several implementations of the procedure appeared, and then widely accepted by researchers. However, it should be noticed that, first, there is no algorithm to make atom-mapping \cite{BaskinReview} if it is absent (the typical situation with laboratory notebooks (ELN) for example). Second, all available information on synthesis usually contains only positive reactions, so all binary classification accuracies are inevitable overestimated because of artificial negative sets exploited in studies. Finally, the absence of commonly accepted dataset for testing makes the results of different groups practically disparate and  biased to those problems the authors tried to solve. The authors of   \cite{Baylon} selected 40 molecules from DrugBank database to test their multiscale models, whereas \cite{Pande} used database specially prepared for classification \cite{Schneider}.  
 
 First work on applying reinforcement learning for the whole retrosynthetic path \cite{Preuss} showed superior performance compared to the rule-based methods developed before. More important if can deal with several steps of synthesis. But the policy learned during the training again used extracted rules limiting the method. Thus, the development of models for direct estimation of reactants is still of prime importance. Embedding such systems in policy networks within reinforcement learning paradigm can bring forward an entirely data-driven approach to solve challenging organic synthesis problems.
 
