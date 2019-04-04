@@ -50,15 +50,13 @@ from USA patents. Our final model can successfully predict the reactants set for
 42.7\% of cases on the external test set. During the training procedure, we applied 
 different learning rate schedules and snapshot learning. These techniques can prevent 
 overfitting and thus can be a reason to get rid of internal validation dataset that 
-is advantageous for deep models with millions of parameters. We investigate 
-the influence of the temperature while decoding the model output probabilities and find 
-that at T=1.3 the final model can improve the accuracy up to 1-2\%. 
-We also discuss the synergy of applying together the retrosynthetic model to predict 
-reagents and a direct reaction model trained on the same data which makes a prognosis 
-for the product base on reactants.
+is advantageous for deep models with millions of parameters. We thoroughly investigated different 
+approaches to train Transformer models and found snapshot learning with averaging weights on 
+learning rates minima works best.  While decoding the model output probabilities there is a strong 
+ influence of the temperature that improves at T=1.3 the accuracy of models up to 1-2\%. 
 \end{abstract}
 
-\keywords{Reaction outcomes prediction \and Computer retrosynthesis \and Character-based models \and Transformer}
+\keywords{Retrosynthesis prediction \and Computer Aided synthesis Planning \and Character-based models \and Transformer}
 
 \section{Introduction}
 New chemical compounds drive technological advances in material, agricultural, environmental, and medical sciences, thus, embracing all fields of scientific activities which have been bringing social and economic benefits throughout human history. Design of chemicals with predefined properties is an arena of QSAR/QSPR (Quantitative Structure Activity/Property Relationships) approaches aimed at finding correlations between molecular structures and their desired outcomes and then applying these models to optimise activity/property of compounds. 
@@ -74,8 +72,7 @@ its predecessors from which it can be synthesized as every meaningful sentence o
 from source language to target one. If all parts of a reaction are written in SMILES notation, 
 then our source and target sentence are composed of valid SMILES tokens as words. 
 The main goal of the work is to build a model which could for a given target molecule for our example\footnote{
-This reaction is in the test set and it was correctly predicted  by our model. 
-Probability landscapes in the following figures are drawn from this example.} COC(=O)c1cccc(-c2nc3cccnc3[nH]2)c1 in fig. \ref{fig:example-reaction}
+This reaction is in the test set and it was correctly predicted  by our model.} COC(=O)c1cccc(-c2nc3cccnc3[nH]2)c1 in fig. \ref{fig:example-reaction}
 correctly predict the set of reactants. Namely, it should predict Nc1cccnc1N.COC(=O)c1cccc(C(=O)O)c1 in this case.
 
 \begin{figure}
@@ -216,7 +213,7 @@ Following the standard machine learning protocol, we trained our first models (T
 
 During the decoding procedure, we explored the influence of the temperature parameter on the final quality of prediction and found that inferring at higher temperatures gives better result then at T=1. This observation similarly repeated for all our models. Fig. \ref{fig:tempdep} shows the influence of this parameter on the reactants prediction of the part of the training set. Clearly, at T=1.3 the model reaches the maximum of chemically-based accuracy. This fact one can explain that at higher temperatures the landscape of output probabilities of the model is softer letting the beam-search procedure to find more suitable ways during decoding. Of course, the temperature influences only relative distances between peaks, so it does not affect the greedy search method. 
 
-If we apply the early stopping technique, we should select the model around 200 epoch. Effectiveness of such a model marked $T1_1$ in table \ref{tbl:results} resulted in TOP-1 37.9\% on the test set. If we choose the last one model obtained at 1\,000 epoch, then the model $T1_2$ gives us better values -- 39.8\%. In this case, we did not see any need of the validation dataset and keeping in mind that our model has almost 2 millions of parameters we decided to combine training and validation sets and train our next models on both data, e.g., without validation. The model $T2$ was trained on all data and with the same learning rate schedule as $T1$. The results obtained when applying T2 to the test set are better than for T1 set namely 41.8\% against 39.8\%.
+If we apply the early stopping technique, we should select the model around 200 epoch. Effectiveness of such a model marked T1$_1$ in table \ref{tbl:results} resulted in TOP-1 37.9\% on the test set. If we choose the last one model obtained at 1\,000 epoch, then the model T1$_2$ gives us better value -- 39.8\%. In this case, we did not see any need of the validation dataset and keeping in mind that our model has almost 2 millions of parameters we decided to combine training and validation sets and train our next models on both data, e.g., without validation. The model T2 was trained on all data and with the same learning rate schedule as T1. The results obtained when applying T2 to the test set are better than for T1 set namely 41.8\% vs. 39.8\%.
 
 Then we trained our model with cyclic learning rate schedule, eq. \ref{eq:rate}, fig. \ref{fig:example} (b) for better exploration of loss landscape. During training, we also saved the character-based accuracy of the model, fig. \ref{fig:example}, (f). This snapshot training regime \cite{Snapshot} produces a set of different weights at each minimum of learning rate. Averaging them is to some extent equivalent to a consensus of models but within one model \cite{Izmailov}. We tried different averaging regimes for T3 and found that averaging on 6-7-8-9-10 cycles gives better  results. 
 \begin{figure}[t!]
@@ -228,7 +225,7 @@ Then we trained our model with cyclic learning rate schedule, eq. \ref{eq:rate},
 
 Our final T3 model outperforms \cite{Pande} by 5.3\% with beam search and more critical it is also effective with greedy search 40.6\%. The latter one is much faster and consequently more suitable for virtual screening campaigns. 
 
-It worth to notice that TOP-5 accuracy reaches almost 70\%. That means the model can correctly predict reactants but sometimes scoring is wrong and TOP-1 is much less. We tried to improve TOP-1 scoring with two different approaches: internal confidence estimation and forward reaction prediction. 
+It worth to notice that TOP-5 accuracy reaches almost 70\%. That means the model can correctly predict reactants but sometimes scoring is wrong and TOP-1 is much less. We tried to improve TOP-1 scoring with internal confidence estimation. 
 
 \subsection{Internal scoring}
 
@@ -240,34 +237,14 @@ The beam search calculates the sum of negative logarithms of probabilities of se
   \vspace{-0.2cm}
 \end{wrapfigure}parameters of the classifier were: AUC = 0.77, optimal threshold = 0.00678. Then we validated the model with an additional condition: if the score is less than optimal threshold we selected the answer, otherwise  we went to the next candidate in the possible reactant sets returned by the beam search. The results were even worse than without thresholds, 28.45 vs. 42.42.   A possible explanation is that the estimation does not deal with organic chemistry. The model tries to derive some character-based scoring relying only on tokens in a string and increasing this value does not influence the quality of prognosis. The same effect we saw during training when the character accuracy is 98\% whereas chemistry-based metric is much lower. 
  
- 
 Estimation of optimal thresholds on training sets almost always a bad idea due to the biasing of a model to its source data. The correct way is to use validation dataset instead. We built the classifier for the T1-2 with characteristics: AUC = 0.65, optimal threshold 0.00396, and applied it for testing the model. The results were again worse, 14.1\% vs. 40.85\%. There are no significant differencies of accuracies when using unnormalized or normalized on the length of the reactants string scores. Fig. \ref{fig:auc} shows ROC curves for T1-2 and T3-2 models derived at T=1.3. 
-Evidently one cannot use this estimation to improve TOP-1 scoring.
-
-\subsection{Forward reaction prediction scoring}
-
-We built a forward reaction prediction model based on the same data and with the same parameters as we did for retrosynthesis. The final model correctly predicted 84\% of test data. Then we embedded the model in the following algorithm. Once the retrosynthesis model returned possible sets of reactants, we applied the forward model for each item in this set, and the forward model made a prognosis for a product. Then we compared the predicted and real outcomes, and if they both were the same, this reactant set was used as the solution to a particular problem. The example of this procedure is illustrated below for a target molecule: 
-
-
-\noindent\textbf{Cc1cnc(N2CCN(C(=O)c3ccc(N4CCCS4(=O)=O)nc3C)CC2)c(C)c1}
-
-The first beam returns  C[S+](C)(C)=O.Cc1nc(Br)ccc1C(=O)N1CCN(c2ccc(N3CCCS3(=O)=O)c(C)n2)CC1.
-And estimation of a product Cc1nc(Br)ccc1C(=O)N1CCN(c2ccc(N3CCCS3(=O)=O)c(C)n2)CC1 differs from the target. Continue analyzing other beams.
-
-The second beam contains C[Mg+].Cc1nc(Br)ccc1C(=O)N1CCN(c2ccc(N3CCCS3(=O)=O)c(C)n2)CC1 and the forward model predicts   Cc1ccc(C(=O)N2CCN(c3ccc(N4CCCS4(=O)=O)c(C)n3)CC2)c(C)n1 as a product and again it is not we expect.
-
-Next beam with Cc1nc(Br)ccc1C(=O)N1CCN(c2ccc(N3CCCS3(=O)=O)c(C)n2)CC1.Cc1cnc(N2CCNCC2)c(C)c1  gives a product: Cc1cnc(N2CCN(c3ccc(C(=O)N4CCN(c5ccc(N6CCCS6(=O)=O)c(C)n5)CC4)c(C)n3)CC2)c(C)c1, which is again wrong.
-
-At last the fourth beam predicts valid reactants COC(=O)c1ccc(N2CCCS2(=O)=O)nc1C.Cc1cnc(N2CCNCC2)c(C)c1 and the forward model  assembles the right product from them 
-
-\textbf{Cc1cnc(N2CCN(C(=O)c3ccc(N4CCCS4(=O)=O)nc3C)CC2)c(C)c1}.
-
-This schema strongly depends on the quality of the forward model. 
-
+Evidently one cannot use this estimation to improve TOP-1 scoring. 
 
 \section{Discussion}
 
 Much attention paid in the scientific literature for rule-based approaches \cite{Preuss,Baylon}. Since the authors of \cite{Rules} have described the algorithm of automatic rule extraction from mapped reaction database several implementations of the procedure appeared, and then widely accepted by researchers. However, it should be noticed that, first, there is no algorithm to make atom-mapping \cite{BaskinReview} if it is absent (the typical situation with laboratory notebooks (ELN) for example). Second, all available information on synthesis usually contains only positive reactions, so all binary classification accuracies are inevitable overestimated because of artificial negative sets exploited in studies. Finally, the absence of commonly accepted dataset for testing makes the results of different groups practically disparate and  biased to those problems the authors tried to solve. The authors of   \cite{Baylon} selected 40 molecules from DrugBank database to test their multiscale models, whereas \cite{Pande} used database specially prepared for classification \cite{Schneider}.  
+
+Our model can correctly predict reactant set in TOP-5 with accuracy 69.8\%. Internal confidence estimation cannot guarantee a correct solution, so different scoring methods should be developed. One of the promising ways is to use a forward reaction prediction model to estimate whether it is possible to assemble a target molecule from reactants proposed. The scoring model should have excellent characteristics and probably it is possible to apply the same cycling learning rate and snapshot averaging to build it. 
 
 First work on applying reinforcement learning for the whole retrosynthetic path \cite{Preuss} showed superior performance compared to the rule-based methods developed before. More important if can deal with several steps of synthesis. But the policy learned during the training again used extracted rules limiting the method. Thus, the development of models for direct estimation of reactants is still of prime importance. Embedding such systems in policy networks within reinforcement learning paradigm can bring forward an entirely data-driven approach to solve challenging organic synthesis problems.
 
