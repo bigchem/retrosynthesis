@@ -24,20 +24,22 @@
   Pavel Karpov\thanks{Helmholtz Zentrum M{\"u}nchen -- Research Center for Environmental Health (GmbH), Institute of Structural Biology, Ingolst{\"a}dter Landstra{\ss}e 1, D-85764 Neuherberg, Germany, \url{https://www.helmholtz-muenchen.de/stb/index.html}}\\
   Institute of Structural Biology\\
   Helmholtz Zentrum M{\"u}nchen\\
+  BigChem GmbH \\
   Germany, Munich \\
   \texttt{carpovpv@gmail.com} \\
-  \And
-  Igor V.~Tetko\thanks{BigChem GmbH, \url{https://ochem.eu}} \\
-  Institute of Structural Biology\\
-  Helmholtz Zentrum M{\"u}nchen\\
-  Germany, Munich \\ 
-  \texttt{itetko@vcclab.org} \\
-  \And 
+   \And 
   Guillaume Godin\\
   Firmenich International SA,\\
   Research\&Development Division, \\
   Switzerland, Geneva \\
   \texttt{guillaume.godin@firmenich.com}
+  \And
+  Igor V.~Tetko \\
+  Institute of Structural Biology\\
+  Helmholtz Zentrum M{\"u}nchen\\
+  BigChem GmbH \\ 
+  Germany, Munich \\ 
+  \texttt{itetko@bigchem.de} \\
 }
 
 \begin{document}
@@ -45,13 +47,13 @@
 
 \begin{abstract}
 We describe a Transformer model for a retrosynthetic reaction prediction task. 
-The model is trained end-to-end on 45\,033 experimental reaction examples extracted 
-from USA patents. Our final model can successfully predict the reactants set for 
+The model is trained on 45\,033 experimental reaction examples extracted 
+from USA patents. It can successfully predicts the reactants set for 
 42.7\% of cases on the external test set. During the training procedure, we applied 
 different learning rate schedules and snapshot learning. These techniques can prevent 
 overfitting and thus can be a reason to get rid of internal validation dataset that 
 is advantageous for deep models with millions of parameters. We thoroughly investigated different 
-approaches to train Transformer models and found snapshot learning with averaging weights on 
+approaches to train Transformer models and found that snapshot learning with averaging weights on 
 learning rates minima works best.  While decoding the model output probabilities there is a strong 
  influence of the temperature that improves at T=1.3 the accuracy of models up to 1-2\%. 
 \end{abstract}
@@ -61,11 +63,11 @@ learning rates minima works best.  While decoding the model output probabilities
 \section{Introduction}
 New chemical compounds drive technological advances in material, agricultural, environmental, and medical sciences, thus, embracing all fields of scientific activities which have been bringing social and economic benefits throughout human history. Design of chemicals with predefined properties is an arena of QSAR/QSPR (Quantitative Structure Activity/Property Relationships) approaches aimed at finding correlations between molecular structures and their desired outcomes and then applying these models to optimise activity/property of compounds. 
 
-The advent of deep learning \cite{ChenDrugDiscovery} gave a new impulse for virtual modeling and also opened a venue for a promising set of generative methods based on Recurrent Neural Networks \cite{ErtlLSTM}, Variational Autoencoders \cite{DuvenaudVAE}, and Generative Adversarial Networks trained with reinforcement learning \cite{ORGAN,OlivecronaReinforcment}. These techniques are changing the course of QSAR studies from the observation to the invention: from a virtual screening of available compounds to direct synthesis of new candidates. Generative models can produce big sets of promising molecules and impaired with SMILES-based QSAR methods \cite{TetkoCNF} provide a strong foundation for creating highly optimized focussed libraries, but estimation of synthetic availability of these compounds is an open question though several scores based on fragmentation \cite{ErtlSaScore} and machine learning \cite{ColeySCScore} approaches have been developed. 
+The advent of deep learning \cite{ChenDrugDiscovery, Renaissance} gave a new impulse for virtual modeling and also opened a venue for a promising set of generative methods based on Recurrent Neural Networks \cite{ErtlLSTM}, Variational Autoencoders \cite{DuvenaudVAE}, and Generative Adversarial Networks trained with reinforcement learning \cite{ORGAN,OlivecronaReinforcment}. These techniques are changing the course of QSAR studies from the observation to the invention: from a virtual screening of available compounds to direct synthesis of new candidates. Generative models can produce big sets of promising molecules and impaired with SMILES-based QSAR methods \cite{TetkoCNF} provide a strong foundation for creating highly optimized focussed libraries, but estimation of synthetic availability of these compounds is an open question though several approaches based on fragmentation \cite{ErtlSaScore} and machine learning \cite{ColeySCScore} approaches have been developed. 
 To synthesize a molecule, one should have a plan of a multi-step synthesis and also a set of available reactants. 
 Finding an optimal combination of reactants, reactions, and conditions to obtain the compound with good yield, sufficient quality, and quantity is not a trivial task even for experts in organic chemistry. Recent advances in the computer-aided synthesis planning are reviewed in \cite{ColeyReview,EnkvinstReview,BaskinReview}. 
 
-The retrosynthetic analysis worked out by E.\,J.~Corey \cite{Corey} tries to account for all factors while deriving the synthetic route. It iteratively decomposes the molecule on simpler blocks till all of them become available either by purchase or by synthesis described in the literature. At each step, fig. \ref{fig:example-reaction}, all possible disconnections (rules) with known reactions simplify the target molecule bringing to the scene less complex compounds. Some of them may be already available, while the others undergo the next step of retrosynthesis decomposition. Due to the recursive nature of the procedure, it can deal with thousands of putative compounds so computational retrosynthetic approaches can greatly help chemists in finding the best routes. Managing of the database of such rules is complicated and more critical the models based on it are not ready to accommodate new reactions and will always be outdated. Almost more than 60 years of developing rule-based systems ended with no remarkable success in synthesis planning programs. Another approach to tackle the problem is to use so-called template-free methods inspired by the success of machine-translation. They don't require the database of templates and rules due to an inherent possibility to derive this information during training directly from a database of organic reactions with clearly designated roles of reactants, products, reagents, and conditions.
+The retrosynthetic analysis worked out by E.\,J.~Corey \cite{Corey} tries to account for all factors while deriving the synthetic route. It iteratively decomposes the molecule on simpler blocks till all of them become available either by purchase or by synthesis described in the literature. At each step, fig. \ref{fig:example-reaction}, all possible disconnections (rules) with known reactions simplify the target molecule bringing to the scene less complex compounds. Some of them may be already available, while the others undergo the next step of retrosynthesis decomposition. Due to the recursive nature of the procedure, it can deal with thousands of putative compounds so computational retrosynthetic approaches can greatly help chemists in finding the best routes. Managing of the database of such rules is complicated and more critical the models based on it are not ready to accommodate new reactions and will always be outdated. Unfortunately, almost more than 60 years of developing rule-based systems ended with no remarkable success in synthesis planning programs \cite{Preuss}. Another approach to tackle the problem is to use so-called template-free methods inspired by the success of machine-translation. They don't require the database of templates and rules due to an inherent possibility to derive this information during training directly from a database of organic reactions with clearly designated roles of reactants, products, reagents, and conditions.
 
 The analogy between machine translation and retrosynthesis is evident: each target molecule has 
 its predecessors from which it can be synthesized as every meaningful sentence one can translate 
@@ -94,12 +96,13 @@ accuracy on the test set was moderate 37.4\% but still comparable to rule-based 
 We questioned about the possibility of improvement models for one-step retrosynthesis utilizing modern neural network architectures 
 and training techniques. Applying the Transformer Model \cite{Transformer}, 
 together with cyclical learning rate schedule \cite{TransformerTips}, 
-resulted in a single model with accuracy 42.7\%, 
-that is more than 5\% higher compare to the baseline model \cite{Pande}.  
+resulted in a model with accuracy 42.7\%, 
+that is  $>5$\% higher compare to the baseline model \cite{Pande}.  
 
 Our main contributions are:
 \begin{itemize}
-\item We show that for this particular task there is no need to use a validation dataset for early-stopping or other parameters optimization. We trained all the parameters directly from the training dataset.
+\item We show that Transformer can be efficiently used for a retrosynthesis prediction task.
+\item We show that for this particular task there is no advantage to use a validation dataset for early-stopping or other parameters optimization. We trained all the parameters directly from the training dataset.
 \item Applying weights averaging and snapshot learning helped to train the most precise model for one-step retrosynthesis prediction. We averaged weights on 5 successive cycles of learning rate schedule.
 \item Increasing the temperature while performing a beam-search procedure improves the accuracy up to 2\%. 
 \end{itemize}
@@ -123,7 +126,7 @@ The seq2seq models were developed to support machine translation where the input
 \texttt{token\_regex = "(\textbackslash[[\textasciicircum \textbackslash]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\textbackslash(|\textbackslash)| \textbackslash.|=|\#|-|\textbackslash+|\textbackslash\textbackslash\textbackslash\textbackslash|\textbackslash/|:|\textasciitilde|@|\textbackslash?|>|\textbackslash*|\textbackslash\$|\textbackslash\%[0-9]\{2\}|[0-9])"}.
 \end{quote}
 
-Though such tokenization is more similar to way chemists think, it also has some drawbacks that confuse network by putting forward low represented molecular parts. For example, after applying this regexp to the database one can see some not frequent moieties such as [C@@], [C@@H], [S@@],[C@],[C@H],[N@@+],[se],[C-],[Cl+3]. The thing in brackets according to SMILES specification can be quite a complex gathering not only the element's name itself, but also its isotopic value, stereochemistry configuration, the formal charge, and the number of hydrogens\footnote{We do not want to exclude stereochemistry information from our model as well as charges and explicit hydrogens that will lead to reducing of the dataset. Moreover, work in generative models showed excellent abilities of models to close cycles, for example, c\textbf{1}cc(COC)cccc\textbf{1}. If the model can capture such a long distance relation why should it be cracked on much simplier substrings enclosed by brackets?}. Strictly speaking, to do tokenization right one should also parse the content of brackets just increasing the number of possible words in the vocabulary what eventually leads to the simplest tokenization only with letters. We tried different schemes of tokenization in this work but did not see any improvements in using them over character-based method.
+Though such tokenization is more similar to way chemists think, it also has some drawbacks that confuse network by putting forward low represented molecular parts. For example, after applying this regexp to the database one can see some not frequent moieties such as [C@@], [C@@H], [S@@],[C@],[C@H],[N@@+],[se],[C-],[Cl+3]. The thing in brackets according to SMILES specification can be quite a complex gathering not only the element's name itself, but also its isotopic value, stereochemistry configuration, the formal charge, and the number of hydrogens\footnote{We do not want to exclude stereochemistry information from our model as well as charges and explicit hydrogens that will lead to reducing of the dataset. Moreover, work in generative models showed excellent abilities of models to close cycles, for example, c\textbf{1}cc(COC)cccc\textbf{1}. If the model can capture such a long distance relation why should it be cracked on much simplier substrings enclosed by brackets?}. Strictly speaking, to do tokenization right one should also parse the content of brackets just increasing the number of possible words in the vocabulary what eventually leads to the simplest tokenization only with letters. We tried different schemes of tokenization in this work but did not see any improvements in using them over simple character-based method.
 
 Our final vocabulary has length of 66 symbols\footnote{This vocabulary derived from the complete USPTO set and is a little bit wider than needed for this study. But for future extending of the models it is better to fix the input shape to the biggest possible value.}:
 
@@ -147,7 +150,7 @@ Transformer model shows the state-of-the-art results in machine translation and 
 
 \subsection{Model inference}
 
-The model tries to estimate the probability of the next symbol over the model's vocabulary given all previous symbols in the string. Technically, the Transformer model first calculates logits, $z_i$, and then transforms them to probabilities. 
+The model estimates the probability of the next symbol over the model's vocabulary given all previous symbols in the string. Technically, the Transformer model first calculates logits, $z_i$, and then transforms them to probabilities. 
 \begin{equation}
 z_i = Transformer( \{x_1, x_2, x_3, ..., x_L\}, \{y_1, y_2, y_3, ..., y_{i-1} \})
 \end{equation}
@@ -163,8 +166,8 @@ During the inference however we have several possibilities how to convert $q_i$ 
 \subsection{Training heuristics}
 Training a Transformer model is a challenge, and several heuristics have been proposed \cite{TransformerTips}, some of them were used in this study:
 
-\paragraph{Using as bigger batch size as possible.} However, due to our hardware limitations we could not set the batch size more then 64\footnote{Our first implementation of the model required a lot of memory to deal with masks of reactants and products. Though later we improved the code we still remained this size for consistency of the results.};
-\paragraph{Iincreasing the learning rate at the beginning} of training up to warmup steps\footnote{In our implementation 1 step is equivalent to 1 batch. The number of reactions for training is 40\,029 + 5\,004, so one epoch is equal to 704 batches.}. The authors of the original Transformer paper \cite{Transformer}  used 4\,000 steps for warming. The Transformer model for reaction prediction task from \cite{SchwallerTransformer} used 8\,000 steps. We have also tried different values for warmup and eventually found that 16\,000 works well with our model.
+\paragraph{Using as bigger batch size as possible.} Due to our hardware limitations we could not set the batch size more then 64\footnote{Our first implementation of the model required a lot of memory to deal with masks of reactants and products. Though later we improved the code we still remained this size for consistency of the results.};
+\paragraph{Iincreasing the learning rate at the beginning} of training up to warmup steps\footnote{In our implementation 1 step is equivalent to 1 batch. The number of reactions for training is 40\,029 + 5\,004, so one epoch is equal to 704 batches.}. The authors of the original Transformer paper \cite{Transformer}  used 4\,000 steps for warming. The Transformer model for reaction prediction task from \cite{SchwallerTransformer} used 8\,000 steps. We analysed different values for warmup and eventually found that 16\,000 works well with our model.
 \paragraph{Applying cyclic learning rate} schedules. This tips can generally improve any model \cite{Izmailov} through better loss landscape exploration with bigger learning rates after the optimiser felt down to some local minima. For this study we used the following scheme for learning rate calculation depending on the step:
 \[
     u(step)= 
@@ -213,9 +216,9 @@ Following the standard machine learning protocol, we trained our first models (T
 
 During the decoding procedure, we explored the influence of the temperature parameter on the final quality of prediction and found that inferring at higher temperatures gives better result then at T=1. This observation similarly repeated for all our models. Fig. \ref{fig:tempdep} shows the influence of this parameter on the reactants prediction of the part of the training set. Clearly, at T=1.3 the model reaches the maximum of chemically-based accuracy. This fact one can explain that at higher temperatures the landscape of output probabilities of the model is softer letting the beam-search procedure to find more suitable ways during decoding. Of course, the temperature influences only relative distances between peaks, so it does not affect the greedy search method. 
 
-If we apply the early stopping technique, we should select the model around 200 epoch. Effectiveness of such a model marked T1$_1$ in table \ref{tbl:results} resulted in TOP-1 37.9\% on the test set. If we choose the last one model obtained at 1\,000 epoch, then the model T1$_2$ gives us better value -- 39.8\%. In this case, we did not see any need of the validation dataset and keeping in mind that our model has almost 2 millions of parameters we decided to combine training and validation sets and train our next models on both data, e.g., without validation. The model T2 was trained on all data and with the same learning rate schedule as T1. The results obtained when applying T2 to the test set are better than for T1 set namely 41.8\% vs. 39.8\%.
+If we applied the early stopping technique, the training of a model is stopped around 200 epoch\footnote{Though we trained our models for 1\,000 epochs we also saved their weights after each epoch and for imitating early stopping technique selected those weights that correspond to minimum in validation loss function.}. Effectiveness of such a model marked T1$_1$ in table \ref{tbl:results} resulted in TOP-1 37.9\% on the test set. If we chose the last one model obtained at 1\,000 epoch, then the model T1$_2$ gave us better value -- 39.8\%. In this case, we did not see any need of the validation dataset and keeping in mind that our model has almost 2 millions of parameters we decided to combine training and validation sets and train our next models on both data, e.g., without validation. The model T2 was trained on all data and with the same learning rate schedule as T1. The results obtained when applying T2 to the test set are better than for T1 model namely 41.8\% vs. 39.8\%, respectively.
 
-Then we trained our model with cyclic learning rate schedule, eq. \ref{eq:rate}, fig. \ref{fig:example} (b) for better exploration of loss landscape. During training, we also saved the character-based accuracy of the model, fig. \ref{fig:example}, (f). This snapshot training regime \cite{Snapshot} produces a set of different weights at each minimum of learning rate. Averaging them is to some extent equivalent to a consensus of models but within one model \cite{Izmailov}. We tried different averaging regimes for T3 and found that averaging on 6-7-8-9-10 cycles gives better  results. 
+Then we trained our model with cyclic learning rate schedule, eq. \ref{eq:rate}, fig. \ref{fig:example} (b) for better exploration of loss landscape. During training, we also saved the character-based accuracy of the model, fig. \ref{fig:example}, (f). This snapshot training regime \cite{Snapshot} produces a set of different weights at each minimum of learning rate. Averaging them is to some extent equivalent to a consensus of models but within one model \cite{Izmailov}. We tried different averaging regimes for T3 and found that averaging five last cycles gives better  results. 
 \begin{figure}[t!]
   \centering
   \includegraphics[width = 16cm]{images/learning.pdf}
@@ -244,9 +247,9 @@ Evidently one cannot use this estimation to improve TOP-1 scoring.
 
 Much attention paid in the scientific literature for rule-based approaches \cite{Preuss,Baylon}. Since the authors of \cite{Rules} have described the algorithm of automatic rule extraction from mapped reaction database several implementations of the procedure appeared, and then widely accepted by researchers. However, it should be noticed that, first, there is no algorithm to make atom-mapping \cite{BaskinReview} if it is absent (the typical situation with laboratory notebooks (ELN) for example). Second, all available information on synthesis usually contains only positive reactions, so all binary classification accuracies are inevitable overestimated because of artificial negative sets exploited in studies. Finally, the absence of commonly accepted dataset for testing makes the results of different groups practically disparate and  biased to those problems the authors tried to solve. The authors of   \cite{Baylon} selected 40 molecules from DrugBank database to test their multiscale models, whereas \cite{Pande} used database specially prepared for classification \cite{Schneider}.  
 
-Our model can correctly predict reactant set in TOP-5 with accuracy 69.8\%. Internal confidence estimation cannot guarantee a correct solution, so different scoring methods should be developed. One of the promising ways is to use a forward reaction prediction model to estimate whether it is possible to assemble a target molecule from reactants proposed. The scoring model should have excellent characteristics and probably it is possible to apply the same cycling learning rate and snapshot averaging to build it. 
+Our model can correctly predict reactant set in TOP-5 with accuracy 69.8\%. Internal confidence estimation cannot guarantee a correct ordering of reactants sets, so different scoring methods should be developed. One of the promising ways is to use a forward reaction prediction model to estimate whether it is possible to assemble a target molecule from reactants proposed. The scoring model should have excellent characteristics and probably it is possible to apply the same cycling learning rate and snapshot averaging to build it. 
 
-First work on applying reinforcement learning for the whole retrosynthetic path \cite{Preuss} showed superior performance compared to the rule-based methods developed before. More important if can deal with several steps of synthesis. But the policy learned during the training again used extracted rules limiting the method. Thus, the development of models for direct estimation of reactants is still of prime importance. Embedding such systems in policy networks within reinforcement learning paradigm can bring forward an entirely data-driven approach to solve challenging organic synthesis problems.
+First work on applying reinforcement learning for the whole retrosynthetic path \cite{Preuss} showed superior performance compared to the rule-based methods developed before. More important if can deal with several steps of synthesis. But the policy learned during the training again used extracted rules limiting the method. Thus, the development of models for direct estimation of reactants is still of prime importance. During the encoding process, the Transformer finds an internal representation of a reaction which can be useful for multicomponent QSAR \cite{Kravtsov}  for predicting rate constants \cite{Varnek} and yields of reactions. Embedding such systems in policy networks within reinforcement learning paradigm can bring forward an entirely data-driven approach to solve challenging organic synthesis problems.
 
 \section{Conclusions}
 
@@ -258,7 +261,8 @@ All source code and also models built are available online via github
 \end{center}
 
 \section*{Acknowledgments}
-This study has been partially supported by ERA-CVD (\url{httpd://era-cvd.eu}) "Cardio-Oncology" project, BMBF 01KL1710.
+This study has been partially supported by ERA-CVD (\url{httpd://era-cvd.eu}) "Cardio-Oncology" project, BMBF 01KL1710 and 
+by European Union's Horizon 2020 research and innovation program under the Marie Sk\l odowska-Curie grant agreement No. 676434, "Big Data in Chemistry" ("BIGCHEM", http://bigchem.eu). 
 The authors thank NVIDIA Corporation for donating Quadro P6000 and Titan Xp graphics cards for this research.
 
 \bibliographystyle{naturemag}  
