@@ -43,7 +43,7 @@
   year        = {2017},
   abstract    = {The exploration of novel chemical spaces is one of the most important tasks of cheminformatics when supporting the drug discovery process. Properly designed and trained deep neural networks can provide a viable alternative to brute-force de novo approaches or various other machine-learning techniques for generating novel drug-like molecules. In this article we present a method to generate molecules using a long short-term memory (LSTM) neural network and provide an analysis of the results, including a virtual screening test. Using the network one million drug-like molecules were generated in 2 hours. The molecules are novel, diverse (contain numerous novel chemotypes), have good physicochemical properties and have good synthetic accessibility, even though these qualities were not specific constraints. Although novel, their structural features and functional groups remain closely within the drug-like space defined by the bioactive molecules from ChEMBL. Virtual screening using the profile QSAR approach confirms that the potential of these novel molecules to show bioactivity is comparable to the ChEMBL set from which they were derived. The molecule generator written in Python used in this study is available on request.},
   date        = {2017-12-20},
-  eprint      = {1712.07449v2},
+  eprint      = {https://arxiv.org/abs/1712.07449},
   eprintclass = {cs.LG},
   eprinttype  = {arXiv},
   file        = {online:http\://arxiv.org/pdf/1712.07449v2:PDF},
@@ -156,11 +156,11 @@
 @Article{SchwallerTranslation,
   author      = {Philippe Schwaller and Theophile Gaudin and David Lanyi and Costas Bekas and Teodoro Laino},
   title       = {Found in Translation: Predicting Outcomes of Complex Organic Chemistry Reactions using Neural Sequence-to-Sequence Models},
-  journal     = {ArXiv},
+  journal     = {arXiv},
   year        = {2018},
   abstract    = {There is an intuitive analogy of an organic chemist's understanding of a compound and a language speaker's understanding of a word. Consequently, it is possible to introduce the basic concepts and analyze potential impacts of linguistic analysis to the world of organic chemistry. In this work, we cast the reaction prediction task as a translation problem by introducing a template-free sequence-to-sequence model, trained end-to-end and fully data-driven. We propose a novel way of tokenization, which is arbitrarily extensible with reaction information. With this approach, we demonstrate results superior to the state-of-the-art solution by a significant margin on the top-1 accuracy. Specifically, our approach achieves an accuracy of 80.1% without relying on auxiliary knowledge such as reaction templates. Also, 66.4% accuracy is reached on a larger and noisier dataset.},
   date        = {2017-11-13},
-  eprint      = {1711.04810v2},
+  eprint      = {https://arxiv.org/abs/1711.04810v2},
   eprintclass = {cs.LG},
   eprinttype  = {arXiv},
   file        = {online:http\://arxiv.org/pdf/1711.04810v2:PDF},
@@ -170,9 +170,11 @@
 @Article{Snapshot,
   author      = {Gao Huang and Yixuan Li and Geoff Pleiss and Zhuang Liu and John E. Hopcroft and Kilian Q. Weinberger},
   title       = {Snapshot Ensembles: Train 1, get M for free},
+  journal     = {arXiv},
+  year        = {2017},
   abstract    = {Ensembles of neural networks are known to be much more robust and accurate than individual networks. However, training multiple deep networks for model averaging is computationally expensive. In this paper, we propose a method to obtain the seemingly contradictory goal of ensembling multiple neural networks at no additional training cost. We achieve this goal by training a single neural network, converging to several local minima along its optimization path and saving the model parameters. To obtain repeated rapid convergence, we leverage recent work on cyclic learning rate schedules. The resulting technique, which we refer to as Snapshot Ensembling, is simple, yet surprisingly effective. We show in a series of experiments that our approach is compatible with diverse network architectures and learning tasks. It consistently yields lower error rates than state-of-the-art single models at no additional training cost, and compares favorably with traditional network ensembles. On CIFAR-10 and CIFAR-100 our DenseNet Snapshot Ensembles obtain error rates of 3.4% and 17.4% respectively.},
   date        = {2017-04-01},
-  eprint      = {1704.00109v1},
+  eprint      = {https://arxiv.org/abs/1704.00109v1},
   eprintclass = {cs.LG},
   eprinttype  = {arXiv},
   file        = {online:http\://arxiv.org/pdf/1704.00109v1:PDF},
@@ -182,9 +184,11 @@
 @Article{Izmailov,
   author      = {Pavel Izmailov and Dmitrii Podoprikhin and Timur Garipov and Dmitry Vetrov and Andrew Gordon Wilson},
   title       = {Averaging Weights Leads to Wider Optima and Better Generalization},
+  journal     = {arXiv},
+  year        = {2018},
   abstract    = {Deep neural networks are typically trained by optimizing a loss function with an SGD variant, in conjunction with a decaying learning rate, until convergence. We show that simple averaging of multiple points along the trajectory of SGD, with a cyclical or constant learning rate, leads to better generalization than conventional training. We also show that this Stochastic Weight Averaging (SWA) procedure finds much flatter solutions than SGD, and approximates the recent Fast Geometric Ensembling (FGE) approach with a single model. Using SWA we achieve notable improvement in test accuracy over conventional SGD training on a range of state-of-the-art residual networks, PyramidNets, DenseNets, and Shake-Shake networks on CIFAR-10, CIFAR-100, and ImageNet. In short, SWA is extremely easy to implement, improves generalization, and has almost no computational overhead.},
   date        = {2018-03-14},
-  eprint      = {1803.05407v3},
+  eprint      = {https://arxiv.org/abs/1803.05407v3},
   eprintclass = {cs.LG},
   eprinttype  = {arXiv},
   file        = {online:http\://arxiv.org/pdf/1803.05407v3:PDF},
@@ -225,7 +229,7 @@
   abstract      = {This article describes our experiments in neural machine translation using the recent Tensor2Tensor framework and the Transformer sequence-to-sequence model (Vaswani et al., 2017). We examine some of the critical parameters that affect the final translation quality, memory usage, training stability and training time, concluding each experiment with a set of recommendations for fellow researchers. In addition to confirming the general mantra "more data and larger models", we address scaling to multiple GPUs and provide practical tips for improved training regarding batch size, learning rate, warmup steps, maximum sentence length and checkpoint averaging. We hope that our observations will allow others to get better results given their particular hardware and data constraints.},
   date          = {2018-04-01},
   doi           = {10.2478/pralin-2018-0002},
-  eprint        = {1804.00247v2},
+  eprint        = {https://arxiv.org/abs/1804.00247v2},
   eprintclass   = {cs.CL},
   eprinttype    = {arXiv},
   file          = {online:http\://arxiv.org/pdf/1804.00247v2:PDF},
@@ -241,7 +245,7 @@
   year        = {2015},
   abstract    = {A very simple way to improve the performance of almost any machine learning algorithm is to train many different models on the same data and then to average their predictions. Unfortunately, making predictions using a whole ensemble of models is cumbersome and may be too computationally expensive to allow deployment to a large number of users, especially if the individual models are large neural nets. Caruana and his collaborators have shown that it is possible to compress the knowledge in an ensemble into a single model which is much easier to deploy and we develop this approach further using a different compression technique. We achieve some surprising results on MNIST and we show that we can significantly improve the acoustic model of a heavily used commercial system by distilling the knowledge in an ensemble of models into a single model. We also introduce a new type of ensemble composed of one or more full models and many specialist models which learn to distinguish fine-grained classes that the full models confuse. Unlike a mixture of experts, these specialist models can be trained rapidly and in parallel.},
   date        = {2015-03-09},
-  eprint      = {1503.02531v1},
+  eprint      = {https://arxiv.org/abs/1503.02531v1},
   eprintclass = {stat.ML},
   eprinttype  = {arXiv},
   file        = {online:http\://arxiv.org/pdf/1503.02531v1:PDF},
@@ -256,12 +260,7 @@
   volume  = {58},
   number  = {2},
   pages   = {252-261},
-  note    = {PMID: 29309147},
   doi     = {10.1021/acs.jcim.7b00622},
-  url     = { 
-        https://doi.org/10.1021/acs.jcim.7b00622
-    
-},
 }
 
 @Article{ErtlSaScore,
@@ -296,7 +295,7 @@
   year       = {2017},
   abstract   = {In unsupervised data generation tasks, besides the generation of a sample based on previous observations, one would often like to give hints to the model in order to bias the generation towards desirable metrics. We propose a method that combines Generative Adversarial Networks (GANs) and reinforcement learning (RL) in order to accomplish exactly that. While RL biases the data generation process towards arbitrary metrics, the GAN component of the reward function ensures that the model still remembers information learned from data. We build upon previous results that incorporated GANs and RL in order to generate sequence data and test this model in several settings for the generation of molecules encoded as text sequences (SMILES) and in the context of music generation, showing for each case that we can effectively bias the generation process towards desired metrics.},
   date       = {2017-05-30},
-  eprint     = {1705.10843v3},
+  eprint     = {https://arxiv.org/abs/1705.10843v3},
   eprinttype = {arXiv},
   file       = {online:http\://arxiv.org/pdf/1705.10843v3:PDF},
   keywords   = {stat.ML, cs.LG},
@@ -305,9 +304,9 @@
 @Article{Transformer,
   author     = {Ashish Vaswani and Noam Shazeer and Niki Parmar and Jakob Uszkoreit and Llion Jones and Aidan N. Gomez and Lukasz Kaiser and Illia Polosukhin},
   title      = {Attention Is All You Need},
-  journal    = {ArXiv},
+  journal    = {arXiv},
   year       = {2017},
-  eprint     = {1706.03762},
+  eprint     = {https://arxiv.org/abs/1706.03762},
   eprinttype = {arXiv},
 }
 
@@ -318,7 +317,7 @@
   year        = {2018},
   abstract    = {Organic synthesis is one of the key stumbling blocks in medicinal chemistry. A necessary yet unsolved step in planning synthesis is solving the forward problem: given reactants and reagents, predict the products. Similar to other works, we treat reaction prediction as a machine translation problem between SMILES strings of reactants-reagents and the products. We show that a multi-head attention Molecular Transformer model outperforms all algorithms in the literature, achieving a top-1 accuracy above 90% on a common benchmark dataset. Our algorithm requires no handcrafted rules, and accurately predicts subtle chemical transformations. Crucially, our model can accurately estimate its own uncertainty, with an uncertainty score that is 89% accurate in terms of classifying whether a prediction is correct. Furthermore, we show that the model is able to handle inputs without reactant-reagent split and including stereochemistry, which makes our method universally applicable.},
   date        = {2018-11-06},
-  eprint      = {1811.02633v1},
+  eprint      = {https://arxiv.org/abs/1811.02633v1},
   eprintclass = {physics.chem-ph},
   eprinttype  = {arXiv},
   file        = {online:http\://arxiv.org/pdf/1811.02633v1:PDF},
@@ -353,7 +352,7 @@
   year        = {2018},
   abstract    = {In our study, we demonstrate the synergy effect between convolutional neural networks and the multiplicity of SMILES. The model we propose, the so-called Convolutional Neural Fingerprint (CNF) model, reaches the accuracy of traditional descriptors such as Dragon (Mauri et al. [22]), RDKit (Landrum [18]), CDK2 (Willighagen et al. [43]) and PyDescriptor (Masand and Rastija [20]). Moreover the CNF model generally performs better than highly fine-tuned traditional descriptors, especially on small data sets, which is of great interest for the chemical field where data sets are generally small due to experimental costs, the availability of molecules or accessibility to private databases. We evaluate the CNF model along with SMILES augmentation during both training and testing. To the best of our knowledge, this is the first time that such a methodology is presented. We show that using the multiplicity of SMILES during training acts as a regulariser and therefore avoids overfitting and can be seen as ensemble learning when considered for testing.},
   date        = {2018-12-11},
-  eprint      = {1812.04439v1},
+  eprint      = {https://arxiv.org/abs/1812.04439v1},
   eprintclass = {cs.LG},
   eprinttype  = {arXiv},
   file        = {online:http\://arxiv.org/pdf/1812.04439v1:PDF},
@@ -368,7 +367,6 @@
   volume  = {51},
   number  = {5},
   pages   = {1281-1289},
-  note    = {PMID: 29715002},
   doi     = {10.1021/acs.accounts.8b00087},
 }
 
@@ -398,8 +396,6 @@
   volume  = {56},
   number  = {12},
   pages   = {2336-2346},
-  note    = {PMID: 28024398},
-  eprint  = {https://doi.org/10.1021/acs.jcim.6b00564},
 }
 
 @Article{Baylon,
@@ -410,13 +406,7 @@
   volume  = {59},
   number  = {2},
   pages   = {673-688},
-  note    = {PMID: 30642173},
   doi     = {10.1021/acs.jcim.8b00801},
-  eprint  = {https://doi.org/10.1021/acs.jcim.8b00801},
-  url     = { 
-        https://doi.org/10.1021/acs.jcim.8b00801
-    
-},
 }
 
 @Article{Rules,
@@ -427,13 +417,7 @@
   volume  = {49},
   number  = {3},
   pages   = {593-602},
-  note    = {PMID: 19434897},
   doi     = {10.1021/ci800228y},
-  eprint  = {https://doi.org/10.1021/ci800228y},
-  url     = { 
-        https://doi.org/10.1021/ci800228y
-    
-},
 }
 
 @Article{BaskinReview,
@@ -471,13 +455,8 @@
   volume    = {11},
   number    = {8},
   pages     = {785-795},
-  note      = {PMID: 27295548},
   doi       = {10.1080/17460441.2016.1201262},
   publisher = {Taylor \& Francis},
-  url       = { 
-        https://doi.org/10.1080/17460441.2016.1201262
-    
-},
 }
 
 @Article{Varnek,
@@ -489,9 +468,7 @@
   number   = {0},
   abstract = {Abstract Here, we report the data visualization, analysis and modeling for a large set of 4830 SN2 reactions the rate constant of which (logk) was measured at different experimental conditions (solvent, temperature). The reactions were encoded by one single molecular graph – Condensed Graph of Reactions, which allowed us to use conventional chemoinformatics techniques developed for individual molecules. Thus, Matched Reaction Pairs approach was suggested and used for the analyses of substituents effects on the substrates and nucleophiles reactivity. The data were visualized with the help of the Generative Topographic Mapping approach. Consensus Support Vector Regression (SVR) model for the rate constant was prepared. Unbiased estimation of the model's performance was made in cross-validation on reactions measured on unique structural transformations. The model's performance in cross-validation (RMSE=0.61 logk units) and on the external test set (RMSE=0.80) is close to the noise in data. Performances of the local models obtained for selected subsets of reactions proceeding in particular solvents or with particular type of nucleophiles were similar to that of the model built on the entire set. Finally, four different definitions of model's applicability domains for reactions were examined.},
   doi      = {10.1002/minf.201800104},
-  eprint   = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/minf.201800104},
   keywords = {bimolecular nucleophilic substitution reactions, Condensed Graph of Reaction, Matched Reaction Pairs, Support Vector Regression, Generative Topographic Mapping, models applicability domain},
-  url      = {https://onlinelibrary.wiley.com/doi/abs/10.1002/minf.201800104},
 }
 
 @Article{Kravtsov,
@@ -504,9 +481,7 @@
   pages   = {299--301},
   month   = {Oct},
   issn    = {1608-3113},
-  day     = {01},
   doi     = {10.1134/S0012500811100107},
-  url     = {https://doi.org/10.1134/S0012500811100107},
 }
 
 @Comment{jabref-meta: databaseType:bibtex;}
