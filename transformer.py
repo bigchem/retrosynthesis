@@ -667,7 +667,7 @@ def main():
            fp.close();
 
         for i in epochs_to_save[1:]:
-           os.remove(i);
+           os.remove("tr-" + str(i) + ".h5");
 
         os.rename(epochs_to_save[0], "final.h5");
         print("Final weights are in the file: final.h5");
