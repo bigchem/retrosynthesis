@@ -57,7 +57,7 @@ vocab_size = len(chars);
 char_to_ix = { ch:i for i,ch in enumerate(chars) }
 ix_to_char = { i:ch for i,ch in enumerate(chars) }
 
-max_predict = 160;  #max for nadine database
+MAX_PREDICT = 160;  #max for nadine database
 TOPK = 1;
 NUM_EPOCHS = 1000;
 
@@ -65,6 +65,69 @@ BATCH_SIZE = 64
 N_HIDDEN = 512
 EMBEDDING_SIZE = 64;
 KEY_SIZE = EMBEDDING_SIZE;
+WARMUP = 16000.0;
+L_FACTOR = 20.0;
+epochs_to_save = [600, 700, 800, 900, 999];
+
+def GetPosEncodingMatrix(max_len = MAX_PREDICT, d_emb = EMBEDDING_SIZE):
+	pos_enc = np.array([
+		[pos / np.power(10000, 2 * (j // 2) / d_emb) for j in range(d_emb)]
+		    for pos in range(max_len)
+			])
+	pos_enc[1:, 0::2] = np.sin(pos_enc[1:, 0::2])
+	pos_enc[1:, 1::2] = np.cos(pos_enc[1:, 1::2])
+	return pos_enc
+
+GEO = GetPosEncodingMatrix();
+
+def gen_right(data):
+    batch_size = len(data);
+    nr = len(data[0]) + 1;
+
+    y = np.zeros((batch_size, nr), np.int8);
+    my = np.zeros((batch_size, nr), np.int8);
+    py = np.zeros((batch_size, nr, EMBEDDING_SIZE), np.float32);
+
+    for cnt in range(batch_size):
+        reactants = "^" + data[cnt];
+        for i, p in enumerate(reactants):
+           y[cnt, i] = char_to_ix[p];
+           py[cnt, i] = GEO[i+1, :EMBEDDING_SIZE ];
+        my[cnt, :i+1] =1;
+    return y, my, py;
+
+def gen_left(data):
+    batch_size = len(data);
+    nl = len(data[0]) + 2;
+
+    x = np.zeros((batch_size, nl), np.int8);
+    mx = np.zeros((batch_size, nl), np.int8);
+    px = np.zeros((batch_size, nl, EMBEDDING_SIZE), np.float32);
+
+    for cnt in range(batch_size):
+        product = "^" + data[cnt] + "$";
+        for i, p in enumerate(product):
+           x[cnt, i] = char_to_ix[ p] ;
+           px[cnt, i] = GEO[i+1, :EMBEDDING_SIZE ];
+        mx[cnt, :i+1] = 1;
+    return x, mx, px;
+
+def gen_right(data):
+    batch_size = len(data);
+    nr = len(data[0]) + 1;
+
+    y = np.zeros((batch_size, nr), np.int8);
+    my = np.zeros((batch_size, nr), np.int8);
+    py = np.zeros((batch_size, nr, EMBEDDING_SIZE), np.float32);
+
+    for cnt in range(batch_size):
+        reactants = "^" + data[cnt];
+        for i, p in enumerate(reactants):
+           y[cnt, i] = char_to_ix[p];
+           py[cnt, i] = GEO[i+1, :EMBEDDING_SIZE ];
+        my[cnt, :i+1] =1;
+    return y, my, py;
+
 
 def gen_data(data, progn = False):
 
@@ -94,8 +157,7 @@ def gen_data(data, progn = False):
 
     #add start and end symbols
     nl += 2;
-    if progn: nr = max_predict;
-    else :  nr += 1;
+    nr += 1;
 
     #products
     x = np.zeros((batch_size, nl), np.int8);
@@ -181,23 +243,38 @@ def generate2(product, T, res, mdl):
 
    return p;
 
-def gen_beam(mdl, T, product, beam_size=7):
 
-   if beam_size <= 1: #perform greedy search
-      answer = [];
+def gen_greedy(mdl_encoder, mdl_decoder, T, product):
+   product_encoded, product_mask = mdl_encoder(product);
+   res = "";
+   score = 0.0;
+   for i in range(1, MAX_PREDICT):
+      p = mdl_decoder(res, product_encoded, product_mask, T);
+      w = np.argmax(p);
+      score -= math.log10( np.max(p));
+      if w == char_to_ix["$"]:
+         break;
+      res += ix_to_char[w];
 
-      reags = gen(mdl, product).split(".");
-      sms = set();
+   reags = res.split(".");
+   sms = set() ;
+   with suppress_stderr():
+      for r in reags:
+         r = r.replace("$", "");
+         m = Chem.MolFromSmiles(r);
+         if m is not None:
+            sms.add(Chem.MolToSmiles(m));
+      if len(sms):
+         return [sorted(list(sms)), score ];
 
-      with suppress_stderr():
-         for r in reags:
-            r = r.replace("$", "");
-            m = Chem.MolFromSmiles(r);
-            if m is not None:
-               sms.add(Chem.MolToSmiles(m));
-         if len(sms):
-            answer.append(sorted(list(sms)));
-      return answer;
+   return ["", 0.0];
+
+
+def gen_beam(mdl_encoder, mdl_decoder, T, product, beam_size = 1):
+
+   product_encoded, product_mask = mdl_encoder(product);
+   if beam_size == 1:
+      return [gen_greedy(mdl_encoder, mdl_decoder, T, product)] ;
 
    lines = [];
    scores = [];
@@ -207,28 +284,23 @@ def gen_beam(mdl, T, product, beam_size=7):
        lines.append("");
        scores.append(0.0);
 
-   for step in range(max_predict):
-
+   for step in range(MAX_PREDICT):
       if step == 0:
-         p = generate2(product, T, "", mdl);
+         p = mdl_decoder("", product_encoded, product_mask, T);
          nr = np.zeros((vocab_size, 2));
          for i in range(vocab_size):
             nr [i ,0 ] = -math.log10(p[i]);
             nr [i ,1 ] = i;
       else:
-
          cb = len(lines);
          nr = np.zeros(( cb * vocab_size, 2));
-
          for i in range(cb):
-            p = generate2(product, T, lines[i], mdl);
+            p = mdl_decoder(lines[i], product_encoded, product_mask, T);
             for j in range(vocab_size):
                nr[ i* vocab_size + j, 0] = -math.log10(p[j]) + scores[i];
                nr[ i* vocab_size + j, 1] = i * 100 + j;
 
-      y = nr [ nr[:, 0].argsort()] ;
-      #print(y);
-      #print("~~~~~~");
+      y = nr [ nr[:, 0].argsort() ] ;
 
       new_beams = [];
       new_scores = [];
@@ -255,10 +327,10 @@ def gen_beam(mdl, T, product, beam_size=7):
    for i in range(len(final_beams)):
       final_beams[i][1] = final_beams[i][1] / len(final_beams[i][0]);
 
-   final_beams = list(sorted(final_beams, key=lambda x:x[1]))[:TOPK];
+   final_beams = list(sorted(final_beams, key=lambda x:x[1]))[:5];
    answer = [];
 
-   for k in range(TOPK):
+   for k in range(5):
       reags = set(final_beams[k][0].split("."));
       sms = set();
 
@@ -268,19 +340,22 @@ def gen_beam(mdl, T, product, beam_size=7):
             m = Chem.MolFromSmiles(r);
             if m is not None:
                sms.add(Chem.MolToSmiles(m));
+            #print(sms);
          if len(sms):
             answer.append([sorted(list(sms)), final_beams[k][1] ]);
+
    return answer;
 
 
-def validate(ftest, mdls, Ts):
+def validate(ftest, mdl_encoder, mdl_decoder, T, beam_size):
 
    NTEST = sum(1 for line in open(ftest,"r"));
    fv = open(ftest, "r");
 
    cnt = 0;
-   ex = 0;
-   longest = 0;
+   ex_1 = 0;
+   ex_3 = 0;
+   ex_5 = 0;
 
    for step in tqdm(range( NTEST )):
       line = fv.readline();
@@ -288,13 +363,12 @@ def validate(ftest, mdls, Ts):
 
       reaction = line.split(">");
       product = reaction[0].strip();
-      reagents = reaction[2];
+      reagents = reaction[2].strip();
 
       answer = [];
+
       reags = set(reagents.split("."));
-
       sms = set();
-
       with suppress_stderr():
          for r in reags:
             m = Chem.MolFromSmiles(r);
@@ -302,51 +376,52 @@ def validate(ftest, mdls, Ts):
                sms.add(Chem.MolToSmiles(m));
          if len(sms):
             answer = sorted(list(sms));
-
-      if len(answer) == 0: continue;
+      if len(answer) == 0:
+          continue;
 
       cnt += 1;
       beams = [];
-
-      for i in range(len(mdls)):
-         try:
-            beams += gen_beam(mdls[i], Ts[i], product);
-         except:
-            pass;
+      try:
+         beams = gen_beam(mdl_encoder, mdl_decoder, T, product, beam_size);
+      except KeyboardInterrupt:
+         print ("\nExact: ", T, ex_1 / cnt * 100.0, ex_3 / cnt * 100.0, ex_5 * 100.0 / cnt, cnt);
+         return;
+      except:
+         pass;
 
       if len (beams) == 0:
          continue;
 
       answer_s = set(answer);
+
       ans = [];
-
       for k in range(len(beams)):
-         ans.append(beams[k][0]);
+         ans.append([ beams[k][0], beams[k][1] ]);
 
-      for beam in ans:
-         beam = set(beam);
-         right = answer_s.intersection(beam);
+      for step, beam in enumerate(ans):
+         right = answer_s.intersection(set(beam[0]));
+
          if len(right) == 0: continue;
          if len(right) == len(answer):
-             ex += 1;
-             longest += 1;
-
-             print("CNT: ", cnt, ex /cnt *100.0, answer);
-             break;
-
-         substrate1 = max( list(right) , key=len);
-         substrate2 = max( answer, key=len);
-
-         if substrate1 == substrate2:
-            longest += 1;
+            if step == 0:
+                ex_1 += 1;
+                ex_3 += 1;
+                ex_5 += 1;
+                print("CNT: ", cnt, ex_1 /cnt *100.0, answer, beam[1], beam[1] / len(".".join(answer)) , 1.0 );
+                break;
+            if step < 3:
+                ex_3 += 1;
+                ex_5 += 1;
+                break;
+            if step < 5:
+                ex_5 += 1;
+                break;
+         break;
 
    fv.close();
 
-   print("Total reactions: ", cnt);
-   print("Longest: ", longest / cnt * 100.0);
-   print("Exact: ", ex / cnt * 100.0);
-
-   return ex / cnt * 100.0;
+   print ("Exact: ", T, ex_1 / cnt * 100.0, ex_3 / cnt * 100.0, ex_5 * 100.0 / cnt, cnt);
+   return;
 
 def buildNetwork(n_block, n_self):
 
@@ -395,7 +470,6 @@ def buildNetwork(n_block, n_self):
     #bottleneck
     l_encoder = l_embed;
 
-    #l_embed = layers.Embedding(input_dim = vocab_size, output_dim = EMBEDDING_SIZE, input_length = None)(l_dec);
     l_embed = layers.Add()([l_voc(l_dec), l_dpos]);
     l_embed = layers.Dropout(rate = 0.1)(l_embed);
 
@@ -445,10 +519,26 @@ def buildNetwork(n_block, n_self):
        return eq;
 
     mdl.compile(optimizer = 'adam', loss = masked_loss, metrics=['accuracy', masked_acc]);
-    mdl.summary();
+    #mdl.summary();
 
-    return mdl;
+    #Divide the graph for faster execution. First, we calculate encoder's values.
+    #Then we use encoder's values and the product mask as additional decoder's input.
+    def mdl_encoder(product):
+       v = gen_left([product]);
+       enc = l_encoder.eval( feed_dict = {l_in : v[0], l_mask : v[1], l_pos : v[2] } );
+       return enc, v[1];
 
+    #And the decoder
+    def mdl_decoder(res, product_encoded, product_mask, T = 1.0):
+
+      v = gen_right([res]);
+      d = l_out.eval( feed_dict = {l_encoder : product_encoded, l_dec : v[0],
+                                   l_dmask : v[1], l_mask : product_mask, l_dpos : v[2]} );
+      prob = d[0, len(res), :] / T;
+      prob = np.exp(prob) / np.sum(np.exp(prob));
+      return prob;
+
+    return mdl, mdl_encoder, mdl_decoder;
 
 def main():
 
@@ -459,27 +549,55 @@ def main():
                     help='Number of attention heads. Default 10.');
 
     parser.add_argument('--validate', action='store', type=str, help='Validation regime.', required=False);
+    parser.add_argument('--predict', action='store', type=str, help='File to predict.', required=False);
+    parser.add_argument('--train', action='store', type=str, help='File to train.', required=False);
     parser.add_argument('--model', type=str, default ='../models/retrosynthesis-long.h5', help='A model to be used during validation. Default file ../models/retrosynthesis-long.h5', required=False);
     parser.add_argument('--temperature', type=float, default =1.2, help='Temperature for decoding. Default 1.2', required=False);
+    parser.add_argument('--beam', type=int, default =5, help='Beams size. Default 5. Must be 1 meaning greedy search or greater or equal 5.', required=False);
 
     args = parser.parse_args();
 
-    mdl = buildNetwork(args.layers, args.heads);
+    mdl, mdl_encoder, mdl_decoder = buildNetwork(args.layers, args.heads);
 
     if args.validate is not None:
         mdl.load_weights(args.model);
-        acc= validate(args.validate, [mdl], [args.temperature]);
+        with K.get_session().as_default():
+           acc= validate(args.validate, mdl_encoder, mdl_decoder, args.temperature, args.beam);
         sys.exit(0);
 
+    if args.predict is not None:
+        mdl.load_weights( args.model);
+        with K.get_session().as_default():
+           NTEST = sum(1 for line in open(args.predict,"r"));
+           fv = open(args.predict, "r");
+           for step in range( NTEST ):
+              line = fv.readline();
+              if len(line) == 0:
+                 break;
+              product = line.split(">")[0].strip();
+              beams = [];
+              try:
+                 beams = gen_beam(mdl_encoder, mdl_decoder, args.temperature, product, args.beam);
+              except KeyboardInterrupt:
+                 break;
+              except:
+                 pass;
+                  
+              if len(beams):
+                 print(product, ">>", ".".join(beams[0][0]));
+              else:
+                 print(product, ">>");
+
+        sys.exit(0);
 
     #evaluate before training
     def printProgress():
        print("");
        for t in ["CN1CCc2n(CCc3cncnc3)c3ccc(C)cc3c2C1",
-    	         "Clc1ccc2n(CC(c3ccc(F)cc3)(O)C(F)(F)F)c3CCN(C)Cc3c2c1",
-    	         "Ic1ccc2n(CC(=O)N3CCCCC3)c3CCN(C)Cc3c2c1"]:
-          res = gen(mdl, t);
-          print(t, " >> ", res);
+   	         "Clc1ccc2n(CC(c3ccc(F)cc3)(O)C(F)(F)F)c3CCN(C)Cc3c2c1",
+                 "Ic1ccc2n(CC(=O)N3CCCCC3)c3CCN(C)Cc3c2c1"]:
+           res = gen(mdl, t);
+           print(t, " >> ", res);
 
     printProgress();
 
@@ -489,33 +607,29 @@ def main():
         pass;
 
     print("Training ...")
-    lrs = [];
 
     class GenCallback(tf.keras.callbacks.Callback):
 
        def __init__(self, eps=1e-6, **kwargs):
           self.steps = 0
-          self.warm = 16000.0;
+          self.warm = WARMUP;
 
        def on_batch_begin(self, batch, logs={}):
           self.steps += 1;
-          lr = 20.0 * min(1.0, self.steps / self.warm) / max(self.steps, self.warm);
-          lrs.append(lr);
+          lr = L_FACTOR * min(1.0, self.steps / self.warm) / max(self.steps, self.warm);
           K.set_value(self.model.optimizer.lr, lr)
 
        def on_epoch_end(self, epoch, logs={}):
-
           printProgress();
-          if epoch > 90:
-             mdl.save_weights("storage/tr-" + str(epoch+1) + ".h5", save_format="h5");
-
+          if epoch in epochs_to_save:
+             mdl.save_weights("tr-" + str(epoch) + ".h5", save_format="h5");
           if epoch % 100 == 0 and epoch > 0:
               self.steps = self.warm - 1;
           return;
 
     try:
 
-        train_file = "../data/retrosynthesis-all.smi";
+        train_file = args.train;
 
         NTRAIN = sum(1 for line in open(train_file));
         print("Number of points: ", NTRAIN);
@@ -528,12 +642,35 @@ def main():
                                      shuffle = True,
                                      callbacks = callback);
 
-        mdl.save_weights("final.h5", save_format="h5");
 
-        #save raw data
-        np.savetxt("lr.txt", lrs);
-        np.savetxt("loss.txt", history.history['loss']);
-        np.savetxt('accuracy.txt', history.history['masked_acc']);
+        print("Averaging weights");
+        f = [];
+
+        for i in epochs_to_save:
+           f.append(h5py.File("tr-" + str(i) + ".h5", "r+"));
+
+        keys = list(f[0].keys());
+        for key in keys:
+           groups = list(f[0][key]);
+           if len(groups):
+              for group in groups:
+                 items = list(f[0][key][group].keys());
+                 for item in items:
+                    data = [];
+                    for i in range(len(f)):
+                       data.append(f[i][key][group][item]);
+                    avg = np.mean(data, axis = 0);
+                    del f[0][key][group][item];
+                    f[0][key][group].create_dataset(item, data=avg);
+
+        for fp in f:
+           fp.close();
+
+        for i in epochs_to_save[1:]:
+           os.remove(i);
+
+        os.rename(epochs_to_save[0], "final.h5");
+        print("Final weights are in the file: final.h5");
 
         # summarize history for accuracy
         plt.plot(history.history['masked_acc'])
@@ -553,13 +690,6 @@ def main():
         plt.savefig("loss.pdf");
 
         plt.clf();
-        # summarize history for learning rate
-        plt.plot(lrs)
-        plt.title('model lr')
-        plt.ylabel('lr')
-        plt.xlabel('epoch')
-        plt.legend(['lr'], loc='upper left')
-        plt.savefig("lr.pdf");
 
     except KeyboardInterrupt:
        pass;
