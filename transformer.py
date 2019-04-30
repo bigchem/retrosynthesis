@@ -584,9 +584,11 @@ def main():
                  pass;
                   
               if len(beams):
-                 print(product, ">>", ".".join(beams[0][0]));
-              else:
                  print(product, ">>");
+                 for i in range(len(beams)):
+                    print("\t", ".".join(beams[i][0]), beams[i][1]);
+              else:
+                 print(product, ">>\n\n");
 
         sys.exit(0);
 
