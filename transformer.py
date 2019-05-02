@@ -554,6 +554,7 @@ def main():
     parser.add_argument('--model', type=str, default ='../models/retrosynthesis-long.h5', help='A model to be used during validation. Default file ../models/retrosynthesis-long.h5', required=False);
     parser.add_argument('--temperature', type=float, default =1.2, help='Temperature for decoding. Default 1.2', required=False);
     parser.add_argument('--beam', type=int, default =5, help='Beams size. Default 5. Must be 1 meaning greedy search or greater or equal 5.', required=False);
+    parser.add_argument('--retrain', action='store', type=str, help='File with initial weights.', required=False);
 
     args = parser.parse_args();
 
@@ -582,7 +583,7 @@ def main():
                  break;
               except:
                  pass;
-                  
+
               if len(beams):
                  print(product, ">>");
                  for i in range(len(beams)):
@@ -591,6 +592,11 @@ def main():
                  print(product, ">>\n\n");
 
         sys.exit(0);
+
+    retrain = False;
+    if args.retrain is not None:
+       retrain = True;
+       mdl.load_weights(args.retrain);
 
     #evaluate before training
     def printProgress():
@@ -618,18 +624,26 @@ def main():
 
        def on_batch_begin(self, batch, logs={}):
           self.steps += 1;
-          lr = L_FACTOR * min(1.0, self.steps / self.warm) / max(self.steps, self.warm);
-          K.set_value(self.model.optimizer.lr, lr)
+          if retrain == False:
+             lr = L_FACTOR * min(1.0, self.steps / self.warm) / max(self.steps, self.warm);
+             K.set_value(self.model.optimizer.lr, lr)
 
        def on_epoch_end(self, epoch, logs={}):
           printProgress();
-          if epoch in epochs_to_save:
-             mdl.save_weights("tr-" + str(epoch) + ".h5", save_format="h5");
-          if epoch % 100 == 0 and epoch > 0:
-              self.steps = self.warm - 1;
+          if retrain == False:
+             if epoch in epochs_to_save:
+                mdl.save_weights("tr-" + str(epoch) + ".h5", save_format="h5");
+             if epoch % 100 == 0 and epoch > 0:
+                self.steps = self.warm - 1;
+          else:
+              #retrain: save model each epoch
+              mdl.save_weights("tr-" + str(epoch) + ".h5", save_format="h5");
           return;
 
     try:
+
+        if retrain == True:
+            K.set_value(mdl.optimizer.lr, 1e-3);
 
         train_file = args.train;
 
@@ -644,35 +658,36 @@ def main():
                                      shuffle = True,
                                      callbacks = callback);
 
+        if retrain == False:
 
-        print("Averaging weights");
-        f = [];
+            print("Averaging weights");
+            f = [];
 
-        for i in epochs_to_save:
-           f.append(h5py.File("tr-" + str(i) + ".h5", "r+"));
+            for i in epochs_to_save:
+                f.append(h5py.File("tr-" + str(i) + ".h5", "r+"));
 
-        keys = list(f[0].keys());
-        for key in keys:
-           groups = list(f[0][key]);
-           if len(groups):
-              for group in groups:
-                 items = list(f[0][key][group].keys());
-                 for item in items:
-                    data = [];
-                    for i in range(len(f)):
-                       data.append(f[i][key][group][item]);
-                    avg = np.mean(data, axis = 0);
-                    del f[0][key][group][item];
-                    f[0][key][group].create_dataset(item, data=avg);
+            keys = list(f[0].keys());
+            for key in keys:
+                groups = list(f[0][key]);
+                if len(groups):
+                   for group in groups:
+                      items = list(f[0][key][group].keys());
+                      for item in items:
+                         data = [];
+                         for i in range(len(f)):
+                            data.append(f[i][key][group][item]);
+                         avg = np.mean(data, axis = 0);
+                         del f[0][key][group][item];
+                         f[0][key][group].create_dataset(item, data=avg);
 
-        for fp in f:
-           fp.close();
+            for fp in f:
+               fp.close();
 
-        for i in epochs_to_save[1:]:
-           os.remove("tr-" + str(i) + ".h5");
+            for i in epochs_to_save[1:]:
+               os.remove("tr-" + str(i) + ".h5");
 
-        os.rename(epochs_to_save[0], "final.h5");
-        print("Final weights are in the file: final.h5");
+            os.rename(epochs_to_save[0], "final.h5");
+            print("Final weights are in the file: final.h5");
 
         # summarize history for accuracy
         plt.plot(history.history['masked_acc'])
