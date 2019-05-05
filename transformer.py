@@ -597,6 +597,7 @@ def main():
     if args.retrain is not None:
        retrain = True;
        mdl.load_weights(args.retrain);
+       epochs_to_save = [90, 91, 92, 93, 94, 95, 96, 97, 98, 99];
 
     #evaluate before training
     def printProgress():
@@ -619,31 +620,24 @@ def main():
     class GenCallback(tf.keras.callbacks.Callback):
 
        def __init__(self, eps=1e-6, **kwargs):
-          self.steps = 0
+          self.steps = 0;
           self.warm = WARMUP;
+          if retrain == True:
+             self.steps = self.warm + 30;            
 
        def on_batch_begin(self, batch, logs={}):
           self.steps += 1;
-          if retrain == False:
-             lr = L_FACTOR * min(1.0, self.steps / self.warm) / max(self.steps, self.warm);
-             K.set_value(self.model.optimizer.lr, lr)
+          lr = L_FACTOR * min(1.0, self.steps / self.warm) / max(self.steps, self.warm);
+          K.set_value(self.model.optimizer.lr, lr)
 
        def on_epoch_end(self, epoch, logs={}):
           printProgress();
-          if retrain == False:
-             if epoch in epochs_to_save:
-                mdl.save_weights("tr-" + str(epoch) + ".h5", save_format="h5");
-             if epoch % 100 == 0 and epoch > 0:
-                self.steps = self.warm - 1;
-          else:
-              #retrain: save model each epoch
-              mdl.save_weights("tr-" + str(epoch) + ".h5", save_format="h5");
-          return;
+          if epoch in epochs_to_save:
+             mdl.save_weights("tr-" + str(epoch) + ".h5", save_format="h5");
+          if epoch % 100 == 0 and epoch > 0:
+             self.steps = self.warm - 1;
 
     try:
-
-        if retrain == True:
-            K.set_value(mdl.optimizer.lr, 1e-3);
 
         train_file = args.train;
 
@@ -653,41 +647,39 @@ def main():
         callback = [ GenCallback() ];
         history = mdl.fit_generator( generator = data_generator(train_file),
                                      steps_per_epoch = int(math.ceil(NTRAIN / BATCH_SIZE)),
-                                     epochs = NUM_EPOCHS,
+                                     epochs = NUM_EPOCHS if retrain == False else 100,
                                      use_multiprocessing=False,
                                      shuffle = True,
                                      callbacks = callback);
 
-        if retrain == False:
 
-            print("Averaging weights");
-            f = [];
+        print("Averaging weights");
+        f = [];
 
-            for i in epochs_to_save:
-                f.append(h5py.File("tr-" + str(i) + ".h5", "r+"));
+        for i in epochs_to_save:
+           f.append(h5py.File("tr-" + str(i) + ".h5", "r+"));
 
-            keys = list(f[0].keys());
-            for key in keys:
-                groups = list(f[0][key]);
-                if len(groups):
-                   for group in groups:
-                      items = list(f[0][key][group].keys());
-                      for item in items:
-                         data = [];
-                         for i in range(len(f)):
-                            data.append(f[i][key][group][item]);
-                         avg = np.mean(data, axis = 0);
-                         del f[0][key][group][item];
-                         f[0][key][group].create_dataset(item, data=avg);
+        keys = list(f[0].keys());
+        for key in keys:
+           groups = list(f[0][key]);
+           if len(groups):
+              for group in groups:
+                 items = list(f[0][key][group].keys());
+                 for item in items:
+                    data = [];
+                    for i in range(len(f)):
+                       data.append(f[i][key][group][item]);
+                    avg = np.mean(data, axis = 0);
+                    del f[0][key][group][item];
+                    f[0][key][group].create_dataset(item, data=avg);
+        for fp in f:
+           fp.close();
 
-            for fp in f:
-               fp.close();
+        for i in epochs_to_save[1:]:
+           os.remove("tr-" + str(i) + ".h5");
 
-            for i in epochs_to_save[1:]:
-               os.remove("tr-" + str(i) + ".h5");
-
-            os.rename(epochs_to_save[0], "final.h5");
-            print("Final weights are in the file: final.h5");
+        os.rename("tr-" + str(epochs_to_save[0]) + ".h5", "final.h5");
+        print("Final weights are in the file: final.h5");
 
         # summarize history for accuracy
         plt.plot(history.history['masked_acc'])
