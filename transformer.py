@@ -554,6 +554,7 @@ def main():
     parser.add_argument('--model', type=str, default ='../models/retrosynthesis-long.h5', help='A model to be used during validation. Default file ../models/retrosynthesis-long.h5', required=False);
     parser.add_argument('--temperature', type=float, default =1.2, help='Temperature for decoding. Default 1.2', required=False);
     parser.add_argument('--beam', type=int, default =5, help='Beams size. Default 5. Must be 1 meaning greedy search or greater or equal 5.', required=False);
+    parser.add_argument('--retrain', action='store', type=str, help='File with initial weights.', required=False);
 
     args = parser.parse_args();
 
@@ -582,7 +583,7 @@ def main():
                  break;
               except:
                  pass;
-                  
+
               if len(beams):
                  print(product, ">>");
                  for i in range(len(beams)):
@@ -591,6 +592,12 @@ def main():
                  print(product, ">>\n\n");
 
         sys.exit(0);
+
+    retrain = False;
+    if args.retrain is not None:
+       retrain = True;
+       mdl.load_weights(args.retrain);
+       epochs_to_save = [90, 91, 92, 93, 94, 95, 96, 97, 98, 99];
 
     #evaluate before training
     def printProgress():
@@ -613,8 +620,10 @@ def main():
     class GenCallback(tf.keras.callbacks.Callback):
 
        def __init__(self, eps=1e-6, **kwargs):
-          self.steps = 0
+          self.steps = 0;
           self.warm = WARMUP;
+          if retrain == True:
+             self.steps = self.warm + 30;            
 
        def on_batch_begin(self, batch, logs={}):
           self.steps += 1;
@@ -626,8 +635,7 @@ def main():
           if epoch in epochs_to_save:
              mdl.save_weights("tr-" + str(epoch) + ".h5", save_format="h5");
           if epoch % 100 == 0 and epoch > 0:
-              self.steps = self.warm - 1;
-          return;
+             self.steps = self.warm - 1;
 
     try:
 
@@ -639,7 +647,7 @@ def main():
         callback = [ GenCallback() ];
         history = mdl.fit_generator( generator = data_generator(train_file),
                                      steps_per_epoch = int(math.ceil(NTRAIN / BATCH_SIZE)),
-                                     epochs = NUM_EPOCHS,
+                                     epochs = NUM_EPOCHS if retrain == False else 100,
                                      use_multiprocessing=False,
                                      shuffle = True,
                                      callbacks = callback);
@@ -664,14 +672,13 @@ def main():
                     avg = np.mean(data, axis = 0);
                     del f[0][key][group][item];
                     f[0][key][group].create_dataset(item, data=avg);
-
         for fp in f:
            fp.close();
 
         for i in epochs_to_save[1:]:
            os.remove("tr-" + str(i) + ".h5");
 
-        os.rename(epochs_to_save[0], "final.h5");
+        os.rename("tr-" + str(epochs_to_save[0]) + ".h5", "final.h5");
         print("Final weights are in the file: final.h5");
 
         # summarize history for accuracy
