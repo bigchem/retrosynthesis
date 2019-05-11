@@ -1,2 +1,2 @@
 # retrosynthesis
-Applying deep neural networks for retrosynthesis tasks
+The repository contains the source code and trained models for the paper "A Transformer model for retrosynthesis prediction" https://chemrxiv.org/articles/A_Transformer_Model_for_Retrosynthesis/8058464. The retrosynthesis task is treated as a machine translation problem where the source language is a molecule one wants to synthesize, and the target language is the set of reactants suitable for the synthesis.  
