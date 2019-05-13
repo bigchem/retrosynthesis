@@ -172,7 +172,7 @@ Training a Transformer model is a challenge, and several heuristics have been pr
 
 \paragraph{Using as bigger batch size as possible.} Due to our hardware limitations we could not set the batch size more then 64\footnote{Our first implementation of the model required a lot of memory to deal with masks of reactants and products. Though later we improved the code we still remained this size for consistency of the results.};
 \paragraph{Increasing the learning rate at the beginning} of training up to warmup steps\footnote{In our implementation 1 step is equivalent to 1 batch. The number of reactions for training is 40\,029 + 5\,004, so one epoch is equal to 704 batches.}. The authors of the original Transformer paper \cite{Transformer}  used 4\,000 steps for warming. The Transformer model for reaction prediction task from \cite{SchwallerTransformer} used 8\,000 steps. We analysed different values for warmup and eventually found that 16\,000 works well with our model.
-\paragraph{Applying cyclic learning rate} schedules. This tips can generally improve any model \cite{Izmailov} through better loss landscape exploration with bigger learning rates after the optimiser felt down to some local minima. For this study we used the following scheme for learning rate calculation depending on the step:
+\paragraph{Applying cyclic learning rate} schedules. This tips can generally improve any model \cite{Izmailov} through better loss landscape exploration with bigger learning rates after the optimiser fell down to some local minima. For this study we used the following scheme for learning rate calculation depending on the step:
 \[
     u(step)= 
 \begin{cases}
