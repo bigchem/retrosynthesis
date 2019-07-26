@@ -542,6 +542,8 @@ def buildNetwork(n_block, n_self):
 
 def main():
 
+    global epochs_to_save
+
     parser = argparse.ArgumentParser(description='Transformer retrosynthesis model.')
     parser.add_argument('--layers', type=int, default =3,
                     help='Number of layers in encoder\'s module. Default 3.');
