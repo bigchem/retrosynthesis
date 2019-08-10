@@ -81,7 +81,7 @@ int main(int argc, char **argv)
         boost::algorithm::split(items, line, boost::algorithm::is_any_of(">"));
      
         //reactants>reagents>products
-        if(items.size() != 3)
+        if(items.size() != 1)
         {
              fprintf(stderr, "Erron on line: %d.\n", lines);
              return EXIT_FAILURE;
@@ -111,7 +111,7 @@ int main(int argc, char **argv)
         }
      
         //products
-        boost::algorithm::split(compounds, items[2], boost::algorithm::is_any_of("."));
+        boost::algorithm::split(compounds, items[0], boost::algorithm::is_any_of(":"));
         for(int i=0; i< compounds.size(); ++i)
         {
             std::stringstream in;

@@ -618,6 +618,7 @@ def main():
         pass;
 
     print("Training ...")
+    stop = False;
 
     class GenCallback(tf.keras.callbacks.Callback):
 
@@ -625,12 +626,18 @@ def main():
           self.steps = 0;
           self.warm = WARMUP;
           if retrain == True:
-             self.steps = self.warm + 30;            
+             self.steps = self.warm + 30;
 
        def on_batch_begin(self, batch, logs={}):
           self.steps += 1;
           lr = L_FACTOR * min(1.0, self.steps / self.warm) / max(self.steps, self.warm);
           K.set_value(self.model.optimizer.lr, lr)
+
+          if os.path.isfile('stop'):
+             print("Stop file found.");
+             stop = True;
+             self.model.stop_training = True;
+             mdl.save_weights("final.h5", save_format="h5");
 
        def on_epoch_end(self, epoch, logs={}):
           printProgress();
@@ -654,33 +661,34 @@ def main():
                                      shuffle = True,
                                      callbacks = callback);
 
+        if(stop == False):
 
-        print("Averaging weights");
-        f = [];
+           print("Averaging weights");
+           f = [];
 
-        for i in epochs_to_save:
-           f.append(h5py.File("tr-" + str(i) + ".h5", "r+"));
+           for i in epochs_to_save:
+              f.append(h5py.File("tr-" + str(i) + ".h5", "r+"));
 
-        keys = list(f[0].keys());
-        for key in keys:
-           groups = list(f[0][key]);
-           if len(groups):
-              for group in groups:
-                 items = list(f[0][key][group].keys());
-                 for item in items:
-                    data = [];
-                    for i in range(len(f)):
-                       data.append(f[i][key][group][item]);
-                    avg = np.mean(data, axis = 0);
-                    del f[0][key][group][item];
-                    f[0][key][group].create_dataset(item, data=avg);
-        for fp in f:
-           fp.close();
+           keys = list(f[0].keys());
+           for key in keys:
+              groups = list(f[0][key]);
+              if len(groups):
+                 for group in groups:
+                    items = list(f[0][key][group].keys());
+                    for item in items:
+                       data = [];
+                       for i in range(len(f)):
+                          data.append(f[i][key][group][item]);
+                       avg = np.mean(data, axis = 0);
+                       del f[0][key][group][item];
+                       f[0][key][group].create_dataset(item, data=avg);
+           for fp in f:
+              fp.close();
 
-        for i in epochs_to_save[1:]:
-           os.remove("tr-" + str(i) + ".h5");
+           for i in epochs_to_save[1:]:
+              os.remove("tr-" + str(i) + ".h5");
+           os.rename("tr-" + str(epochs_to_save[0]) + ".h5", "final.h5");
 
-        os.rename("tr-" + str(epochs_to_save[0]) + ".h5", "final.h5");
         print("Final weights are in the file: final.h5");
 
         # summarize history for accuracy
