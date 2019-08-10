@@ -68,6 +68,7 @@ KEY_SIZE = EMBEDDING_SIZE;
 WARMUP = 16000.0;
 L_FACTOR = 20.0;
 epochs_to_save = [600, 700, 800, 900, 999];
+stop = False
 
 def GetPosEncodingMatrix(max_len = MAX_PREDICT, d_emb = EMBEDDING_SIZE):
 	pos_enc = np.array([
@@ -543,6 +544,7 @@ def buildNetwork(n_block, n_self):
 def main():
 
     global epochs_to_save
+    global stop
 
     parser = argparse.ArgumentParser(description='Transformer retrosynthesis model.')
     parser.add_argument('--layers', type=int, default =3,
@@ -618,7 +620,6 @@ def main():
         pass;
 
     print("Training ...")
-    stop = False;
 
     class GenCallback(tf.keras.callbacks.Callback):
 
@@ -635,6 +636,7 @@ def main():
 
           if os.path.isfile('stop'):
              print("Stop file found.");
+             global stop;
              stop = True;
              self.model.stop_training = True;
              mdl.save_weights("final.h5", save_format="h5");
@@ -654,13 +656,13 @@ def main():
         print("Number of points: ", NTRAIN);
 
         callback = [ GenCallback() ];
+
         history = mdl.fit_generator( generator = data_generator(train_file),
                                      steps_per_epoch = int(math.ceil(NTRAIN / BATCH_SIZE)),
                                      epochs = NUM_EPOCHS if retrain == False else 100,
                                      use_multiprocessing=False,
                                      shuffle = True,
                                      callbacks = callback);
-
         if(stop == False):
 
            print("Averaging weights");
