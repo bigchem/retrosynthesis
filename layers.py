@@ -43,7 +43,7 @@ class MaskLayerLeft(tf.keras.layers.Layer):
 
       length = K.shape(x)[1];
       rank = tf.ones(shape=(1, length), dtype='float32');
-      y = K.expand_dims(x, axis=-1);
+      y = tf.cast(K.expand_dims(x, axis=-1), dtype=tf.float32);
 
       mask = K.dot(y, rank);
       return tf.transpose(mask, (0,2,1));
@@ -66,7 +66,7 @@ class MaskLayerRight(tf.keras.layers.Layer):
 
       length = K.shape(right)[1];
       rank = tf.ones(shape=(1, length), dtype='float32');
-      y = K.expand_dims(left, axis=-1);
+      y = tf.cast(K.expand_dims(left, axis=-1), dtype=tf.float32);
 
       mask = K.dot(y, rank);
       return tf.transpose(mask, (0,2,1));
@@ -85,10 +85,10 @@ class MaskLayerTriangular(tf.keras.layers.Layer):
    def call(self, x):
 
       t = tf.ones(shape= (K.shape(x)[0], K.shape(x)[1], K.shape(x)[1]));
-      tri = tf.matrix_band_part(t, -1, 0);
+      tri = tf.linalg.band_part(t, -1, 0);
 
       rank = tf.ones(shape=(1, K.shape(x)[1]), dtype='float32');
-      y = K.expand_dims(x, axis=-1);
+      y = tf.cast(K.expand_dims(x, axis=-1), dtype=tf.float32);
 
       mask = K.dot(y, rank);
       return tri * tf.transpose(mask, (0,2,1));

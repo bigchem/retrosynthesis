@@ -15,6 +15,9 @@ from rdkit import Chem
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import tensorflow as tf
+tf.compat.v1.disable_eager_execution();
+tf.debugging.set_log_device_placement(False);
+
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 from tensorflow.keras.utils import plot_model
@@ -27,13 +30,11 @@ from layers import PositionLayer, MaskLayerLeft, \
                    MaskLayerRight, MaskLayerTriangular, \
                    SelfLayer, LayerNormalization
 
-#seed = 0;
-#tf.random.set_random_seed(seed);
-#np.random.seed(seed);
-
-config = tf.ConfigProto()
+config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True;
-K.set_session(tf.Session(config=config))
+config.log_device_placement = False;
+tf.compat.v1.keras.backend.set_session(tf.compat.v1.Session(config=config))
+
 
 class suppress_stderr(object):
    def __init__(self):
@@ -61,7 +62,7 @@ MAX_PREDICT = 160;  #max for nadine database
 TOPK = 1;
 NUM_EPOCHS = 1000;
 
-BATCH_SIZE = 64
+BATCH_SIZE = 2
 N_HIDDEN = 512
 EMBEDDING_SIZE = 64;
 KEY_SIZE = EMBEDDING_SIZE;
@@ -85,8 +86,8 @@ def gen_right(data):
     batch_size = len(data);
     nr = len(data[0]) + 1;
 
-    y = np.zeros((batch_size, nr), np.int8);
-    my = np.zeros((batch_size, nr), np.int8);
+    y = np.zeros((batch_size, nr), np.int32);
+    my = np.zeros((batch_size, nr), np.int32);
     py = np.zeros((batch_size, nr, EMBEDDING_SIZE), np.float32);
 
     for cnt in range(batch_size):
@@ -101,8 +102,8 @@ def gen_left(data):
     batch_size = len(data);
     nl = len(data[0]) + 2;
 
-    x = np.zeros((batch_size, nl), np.int8);
-    mx = np.zeros((batch_size, nl), np.int8);
+    x = np.zeros((batch_size, nl), np.int32);
+    mx = np.zeros((batch_size, nl), np.int32);
     px = np.zeros((batch_size, nl, EMBEDDING_SIZE), np.float32);
 
     for cnt in range(batch_size):
@@ -117,8 +118,8 @@ def gen_right(data):
     batch_size = len(data);
     nr = len(data[0]) + 1;
 
-    y = np.zeros((batch_size, nr), np.int8);
-    my = np.zeros((batch_size, nr), np.int8);
+    y = np.zeros((batch_size, nr), np.int32);
+    my = np.zeros((batch_size, nr), np.int32);
     py = np.zeros((batch_size, nr, EMBEDDING_SIZE), np.float32);
 
     for cnt in range(batch_size):
@@ -161,15 +162,15 @@ def gen_data(data, progn = False):
     nr += 1;
 
     #products
-    x = np.zeros((batch_size, nl), np.int8);
-    mx = np.zeros((batch_size, nl), np.int8);
+    x = np.zeros((batch_size, nl), np.int32);
+    mx = np.zeros((batch_size, nl), np.int32);
 
     #reactants
-    y = np.zeros((batch_size, nr), np.int8);
-    my = np.zeros((batch_size, nr), np.int8);
+    y = np.zeros((batch_size, nr), np.int32);
+    my = np.zeros((batch_size, nr), np.int32);
 
     #for output
-    z = np.zeros((batch_size, nr, vocab_size), np.int8);
+    z = np.zeros((batch_size, nr, vocab_size), np.int32);
 
     for cnt in range(batch_size):
         product = "^" + left[cnt] + "$";
@@ -506,7 +507,7 @@ def buildNetwork(n_block, n_self):
     mdl = tf.keras.Model([l_in, l_mask, l_dec, l_dmask], l_out);
 
     def masked_loss(y_true, y_pred):
-       loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_true, logits=y_pred);
+       loss = tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred);
        mask = tf.cast(tf.not_equal(tf.reduce_sum(y_true, -1), 0), 'float32');
        loss = tf.reduce_sum(loss * mask, -1) / tf.reduce_sum(mask, -1);
        loss = K.mean(loss);
