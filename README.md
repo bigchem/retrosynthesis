@@ -1,5 +1,5 @@
 # Transformer for Retrosynthesis
-The repository contains the source code and trained models for the paper "A Transformer model for retrosynthesis" https://chemrxiv.org/articles/A_Transformer_Model_for_Retrosynthesis/8058464. The retrosynthesis task is treated as a machine translation problem where the source language is a molecule one wants to synthesize, and the target language is the set of reactants suitable for the synthesis.  
+The repository contains the source code and trained models for the paper "A Transformer model for retrosynthesis" https://link.springer.com/chapter/10.1007/978-3-030-30493-5_78. The retrosynthesis task is treated as a machine translation problem where the source language is a molecule one wants to synthesize, and the target language is the set of reactants suitable for the synthesis.  
 
 # Dependencies
 
